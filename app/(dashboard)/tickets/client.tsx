@@ -21,11 +21,18 @@ export function TicketsPageClient({
 }: TicketsPageClientProps) {
   const [showAddForm, setShowAddForm] = useState(false)
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [page, setPage] = useState(1)
+  const PAGE_SIZE = 10
 
   const filteredTickets = tickets.filter((ticket) => {
     if (statusFilter === 'all') return true
     return ticket.status === statusFilter
   })
+
+  const totalPages = Math.max(1, Math.ceil(filteredTickets.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const pageStart = (currentPage - 1) * PAGE_SIZE
+  const paginatedTickets = filteredTickets.slice(pageStart, pageStart + PAGE_SIZE)
 
   const stats = {
     total: tickets.length,
@@ -84,7 +91,10 @@ export function TicketsPageClient({
       {/* Filter Pills */}
       <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0 scrollbar-hide">
         <button
-          onClick={() => setStatusFilter('all')}
+          onClick={() => {
+            setStatusFilter('all')
+            setPage(1)
+          }}
           className={`shrink-0 rounded-xl px-5 py-2 text-xs font-black uppercase tracking-widest transition-all ${
             statusFilter === 'all'
               ? 'bg-slate-800 text-white border border-slate-700 shadow-lg'
@@ -94,7 +104,10 @@ export function TicketsPageClient({
           Všetky ({stats.total})
         </button>
         <button
-          onClick={() => setStatusFilter('pending')}
+          onClick={() => {
+            setStatusFilter('pending')
+            setPage(1)
+          }}
           className={`shrink-0 rounded-xl px-5 py-2 text-xs font-black uppercase tracking-widest transition-all ${
             statusFilter === 'pending'
               ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20 shadow-lg shadow-amber-500/5'
@@ -104,7 +117,10 @@ export function TicketsPageClient({
           Čakajúce ({stats.pending})
         </button>
         <button
-          onClick={() => setStatusFilter('win')}
+          onClick={() => {
+            setStatusFilter('win')
+            setPage(1)
+          }}
           className={`shrink-0 rounded-xl px-5 py-2 text-xs font-black uppercase tracking-widest transition-all ${
             statusFilter === 'win'
               ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shadow-lg shadow-emerald-500/5'
@@ -114,7 +130,10 @@ export function TicketsPageClient({
           Výherné ({stats.won})
         </button>
         <button
-          onClick={() => setStatusFilter('loss')}
+          onClick={() => {
+            setStatusFilter('loss')
+            setPage(1)
+          }}
           className={`shrink-0 rounded-xl px-5 py-2 text-xs font-black uppercase tracking-widest transition-all ${
             statusFilter === 'loss'
               ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20 shadow-lg shadow-rose-500/5'
@@ -131,11 +150,40 @@ export function TicketsPageClient({
             V tejto kategórii zatiaľ nemáš žiadne tikety.
           </div>
         ) : (
-          filteredTickets.map((ticket) => (
-            <TicketCard key={ticket.id} ticket={ticket} />
+          paginatedTickets.map((ticket) => (
+            <TicketCard
+              key={ticket.id}
+              ticket={ticket}
+              expandable
+              showRelativeDate
+            />
           ))
         )}
       </div>
+
+      {filteredTickets.length > PAGE_SIZE && (
+        <div className="flex items-center justify-between rounded-xl border border-border bg-card px-3 py-2">
+          <p className="text-xs font-medium text-muted-foreground">
+            Strana {currentPage} z {totalPages}
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="rounded-lg border border-border px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-card-foreground disabled:opacity-40"
+            >
+              Predchádzajúca
+            </button>
+            <button
+              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="rounded-lg border border-border px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-card-foreground disabled:opacity-40"
+            >
+              Ďalšia
+            </button>
+          </div>
+        </div>
+      )}
 
       {showAddForm && (
         <AddTicketForm
