@@ -16,6 +16,8 @@ import type { OverviewStats, UserStats, Ticket as TicketType } from '@/lib/types
 
 async function getDashboardData() {
   const supabase = await createClient()
+  const toDateKey = (date: Date) =>
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
   
   // Get all tickets for balance calculation (following user formula)
   const { data: allTickets } = await supabase
@@ -40,8 +42,9 @@ async function getDashboardData() {
   
   // Get current month date range
   const now = new Date()
-  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString()
+  const firstDay = toDateKey(new Date(now.getFullYear(), now.getMonth(), 1))
+  const lastDay = toDateKey(new Date(now.getFullYear(), now.getMonth() + 1, 0))
+  const todayKey = toDateKey(now)
 
   // Get users
   const { data: users } = await supabase.from('users').select('*')
@@ -79,6 +82,16 @@ async function getDashboardData() {
     losing_tickets: 0,
   }
 
+  const pendingPotentialWins = (allTickets || [])
+    .filter((t) => t.status === 'pending')
+    .reduce((sum, t) => sum + Number(t.possible_win || 0), 0)
+
+  const todayProfit = (allTickets || [])
+    .filter((t) => t.date === todayKey && (t.status === 'win' || t.status === 'loss'))
+    .reduce((sum, t) => sum + (Number(t.payout || 0) - Number(t.stake || 0)), 0)
+
+  const openTickets = (allTickets || []).filter((t) => t.status === 'pending').length
+
   // Calculate Monthly User Stats for Leaderboard
   const monthlyLeaderboard = users?.map((user) => {
     const userPreds = monthlyPredictions?.filter((p) => p.user_id === user.id) || []
@@ -108,12 +121,15 @@ async function getDashboardData() {
     stats,
     currentBankroll,
     monthlyLeaderboard,
+    pendingPotentialWins,
+    todayProfit,
+    openTickets,
     recentTickets: (recentTickets as TicketType[]) || []
   }
 }
 
 export default async function OverviewPage() {
-  const { stats, currentBankroll, monthlyLeaderboard, recentTickets } = await getDashboardData()
+  const { stats, currentBankroll, monthlyLeaderboard, recentTickets, pendingPotentialWins, todayProfit, openTickets } = await getDashboardData()
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -155,6 +171,23 @@ export default async function OverviewPage() {
           icon={stats.total_profit >= 0 ? TrendingUp : TrendingDown}
           variant={stats.total_profit >= 0 ? 'success' : 'destructive'}
         />
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-700/80">Pending možná výhra</p>
+          <p className="mt-1 text-2xl font-black text-amber-700">{pendingPotentialWins.toFixed(0)} Kč</p>
+        </div>
+        <div className="rounded-xl border border-slate-800 bg-card p-4">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Dnešný profit</p>
+          <p className={`mt-1 text-2xl font-black ${todayProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+            {todayProfit >= 0 ? '+' : ''}{todayProfit.toFixed(0)} Kč
+          </p>
+        </div>
+        <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-4">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-sky-700/80">Otvorené tikety</p>
+          <p className="mt-1 text-2xl font-black text-sky-700">{openTickets}</p>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
