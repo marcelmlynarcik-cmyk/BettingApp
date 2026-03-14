@@ -8,6 +8,20 @@ interface RecentTicketsProps {
 }
 
 export function RecentTickets({ tickets }: RecentTicketsProps) {
+  const getAmountLabel = (ticket: Ticket) => {
+    if (ticket.status === 'pending') return 'Možná výhra'
+    return getStatusLabel(ticket.status)
+  }
+
+  const getAmountValue = (ticket: Ticket) => {
+    if (ticket.status === 'win') return Number(ticket.payout || 0)
+    if (ticket.status === 'pending') {
+      const pendingAmount = Number(ticket.possible_win || 0)
+      return pendingAmount > 0 ? pendingAmount : Number(ticket.stake || 0)
+    }
+    return Number(ticket.stake || 0)
+  }
+
   const getStatusIcon = (status: Ticket['status']) => {
     switch (status) {
       case 'win':
@@ -67,10 +81,10 @@ export function RecentTickets({ tickets }: RecentTicketsProps) {
                   )}
                 >
                   {ticket.status === 'win' ? '+' : ticket.status === 'loss' ? '-' : ''}
-                  {ticket.status === 'win' ? ticket.payout.toFixed(0) : ticket.stake.toFixed(0)} Kč
+                  {getAmountValue(ticket).toFixed(0)} Kč
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  {getStatusLabel(ticket.status)}
+                  {getAmountLabel(ticket)}
                 </p>
               </div>
             </div>

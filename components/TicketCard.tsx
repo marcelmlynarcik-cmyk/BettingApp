@@ -12,6 +12,7 @@ interface TicketCardProps {
 
 export function TicketCard({ ticket }: TicketCardProps) {
   const router = useRouter()
+  const pendingAmount = Number(ticket.possible_win || 0)
 
   const getStatusIcon = (status: Ticket['status']) => {
     switch (status) {
@@ -63,10 +64,14 @@ export function TicketCard({ ticket }: TicketCardProps) {
           )}
         >
           {ticket.status === 'win' ? '+' : ticket.status === 'loss' ? '-' : ''}
-          {ticket.status === 'win' ? ticket.payout.toFixed(0) : ticket.stake.toFixed(0)} Kč
+          {ticket.status === 'win'
+            ? ticket.payout.toFixed(0)
+            : ticket.status === 'pending'
+              ? (pendingAmount > 0 ? pendingAmount : ticket.stake).toFixed(0)
+              : ticket.stake.toFixed(0)} Kč
         </p>
         <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          {getStatusLabel(ticket.status)}
+          {ticket.status === 'pending' ? 'Možná výhra' : getStatusLabel(ticket.status)}
         </p>
       </div>
     </div>
