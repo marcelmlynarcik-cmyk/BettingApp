@@ -112,13 +112,14 @@ export function AddTicketForm({ users, sports, leagues, onClose }: AddTicketForm
     }
 
     // Create a finance transaction for the bet
+    const ticketTag = `[ticket:${ticket.id}]`
     const { error: transError } = await supabase
       .from('finance_transactions')
       .insert({
         type: 'bet',
         amount: -stakeNum,
         date,
-        description: `Stávka na tiket: ${description || 'Nový tiket'}`,
+        description: `Stávka na tiket: ${description || 'Nový tiket'} ${ticketTag}`,
       })
 
     if (transError) {

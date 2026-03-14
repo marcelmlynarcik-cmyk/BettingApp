@@ -54,11 +54,12 @@ export function PredictionResolver({ initialPredictions, ticket }: PredictionRes
               await supabase.from('predictions').update({ profit: profitPerPred }).eq('id', p.id)
             }
 
+            const ticketTag = `[ticket:${ticket.id}]`
             await supabase.from('finance_transactions').insert({
               type: 'payout',
               amount: payout,
               date: new Date().toISOString().split('T')[0],
-              description: `Výplata za tiket: ${ticket.description || 'Tiket'}`,
+              description: `Výplata za tiket: ${ticket.description || 'Tiket'} ${ticketTag}`,
             })
           } else {
             const nokPredictions = allPredictions.filter((p) => p.result === 'NOK')
@@ -109,11 +110,12 @@ export function PredictionResolver({ initialPredictions, ticket }: PredictionRes
         .eq('ticket_id', ticket.id)
 
       // 5. Pridáme záznam do financií
+      const ticketTag = `[ticket:${ticket.id}]`
       await supabase.from('finance_transactions').insert({
         type: 'payout',
         amount: payout,
         date: new Date().toISOString().split('T')[0],
-        description: `Výplata (Všetko OK): ${ticket.description || 'Tiket'}`,
+        description: `Výplata (Všetko OK): ${ticket.description || 'Tiket'} ${ticketTag}`,
       })
 
       router.refresh()

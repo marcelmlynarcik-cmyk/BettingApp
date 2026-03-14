@@ -22,10 +22,65 @@ export function TicketActions({ ticketId, description }: TicketActionsProps) {
 
     setIsDeleting(true)
     try {
-      // 1. Zmažeme predikcie (ak nie je nastavené cascade delete v DB)
-      await supabase.from('predictions').delete().eq('ticket_id', ticketId)
-      
-      // 2. Zmažeme samotný tiket
+      const { data: ticket, error: ticketFetchError } = await supabase
+        .from('tickets')
+        .select('id, date, stake, payout, description')
+        .eq('id', ticketId)
+        .single()
+
+      if (ticketFetchError) throw ticketFetchError
+
+      const ticketTag = `[ticket:${ticketId}]`
+
+      // 1. Zmažeme nové (tagované) finančné záznamy naviazané na tiket
+      const { error: deleteTaggedFinanceError } = await supabase
+        .from('finance_transactions')
+        .delete()
+        .ilike('description', `%${ticketTag}%`)
+
+      if (deleteTaggedFinanceError) throw deleteTaggedFinanceError
+
+      // 2. Fallback pre staršie (netagované) záznamy
+      const ticketDescription = ticket.description || 'Nový tiket'
+      const payoutDescriptionBase = ticket.description || 'Tiket'
+      const stakeValue = Number(ticket.stake || 0)
+      const payoutValue = Number(ticket.payout || 0)
+
+      const { error: deleteOldBetError } = await supabase
+        .from('finance_transactions')
+        .delete()
+        .eq('type', 'bet')
+        .eq('date', ticket.date)
+        .eq('amount', -Math.abs(stakeValue))
+        .eq('description', `Stávka na tiket: ${ticketDescription}`)
+
+      if (deleteOldBetError) throw deleteOldBetError
+
+      if (payoutValue > 0) {
+        const { error: deleteOldPayoutErrorA } = await supabase
+          .from('finance_transactions')
+          .delete()
+          .eq('type', 'payout')
+          .eq('amount', payoutValue)
+          .eq('description', `Výplata za tiket: ${payoutDescriptionBase}`)
+
+        if (deleteOldPayoutErrorA) throw deleteOldPayoutErrorA
+
+        const { error: deleteOldPayoutErrorB } = await supabase
+          .from('finance_transactions')
+          .delete()
+          .eq('type', 'payout')
+          .eq('amount', payoutValue)
+          .eq('description', `Výplata (Všetko OK): ${payoutDescriptionBase}`)
+
+        if (deleteOldPayoutErrorB) throw deleteOldPayoutErrorB
+      }
+
+      // 3. Zmažeme predikcie (ak nie je nastavené cascade delete v DB)
+      const { error: deletePredictionsError } = await supabase.from('predictions').delete().eq('ticket_id', ticketId)
+      if (deletePredictionsError) throw deletePredictionsError
+
+      // 4. Zmažeme samotný tiket
       const { error } = await supabase.from('tickets').delete().eq('id', ticketId)
 
       if (error) throw error
