@@ -4,9 +4,6 @@ import { TicketCard } from '@/components/TicketCard'
 import { LeaderboardCard } from '@/components/LeaderboardCard'
 import {
   Ticket,
-  TrendingUp,
-  TrendingDown,
-  DollarSign,
   Target,
   ArrowRight,
   Wallet,
@@ -140,7 +137,7 @@ export default async function OverviewPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatsCard
           title="Aktuálny stav"
           value={`${Math.floor(currentBankroll).toLocaleString()} Kč`}
@@ -159,17 +156,6 @@ export default async function OverviewPage() {
           subtitle={`${stats.winning_tickets}V - ${stats.losing_tickets}P`}
           icon={Target}
           variant="success"
-        />
-        <StatsCard
-          title="Celkový vklad"
-          value={`${Math.floor(stats.total_stake).toLocaleString()} Kč`}
-          icon={DollarSign}
-        />
-        <StatsCard
-          title="Celkový zisk"
-          value={`${stats.total_profit >= 0 ? '+' : ''}${Math.floor(stats.total_profit).toLocaleString()} Kč`}
-          icon={stats.total_profit >= 0 ? TrendingUp : TrendingDown}
-          variant={stats.total_profit >= 0 ? 'success' : 'destructive'}
         />
       </div>
 
