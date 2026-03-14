@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { notifyError, notifySuccess } from '@/lib/notifications'
 import { PredictionRow } from './PredictionRow'
 import { CheckCheck } from 'lucide-react'
 import type { Prediction, User, Sport, League, Ticket } from '@/lib/types'
@@ -57,6 +58,7 @@ export function PredictionResolver({ initialPredictions, ticket }: PredictionRes
             const ticketTag = `[ticket:${ticket.id}]`
             await supabase.from('finance_transactions').insert({
               type: 'payout',
+              ticket_id: ticket.id,
               amount: payout,
               date: new Date().toISOString().split('T')[0],
               description: `Výplata za tiket: ${ticket.description || 'Tiket'} ${ticketTag}`,
@@ -74,8 +76,10 @@ export function PredictionResolver({ initialPredictions, ticket }: PredictionRes
       }
       
       router.refresh()
+      notifySuccess('Tip bol vyhodnotený', `${result} pre tiket ${ticket.description || 'bez popisu'}`)
     } catch (error) {
       console.error('Chyba pri aktualizácii statusu:', error)
+      notifyError('Chyba pri aktualizácii tipu')
     } finally {
       setUpdatingId(null)
     }
@@ -113,14 +117,17 @@ export function PredictionResolver({ initialPredictions, ticket }: PredictionRes
       const ticketTag = `[ticket:${ticket.id}]`
       await supabase.from('finance_transactions').insert({
         type: 'payout',
+        ticket_id: ticket.id,
         amount: payout,
         date: new Date().toISOString().split('T')[0],
         description: `Výplata (Všetko OK): ${ticket.description || 'Tiket'} ${ticketTag}`,
       })
 
       router.refresh()
+      notifySuccess('Tiket označený ako výherný', ticket.description || 'Všetko OK')
     } catch (error) {
       console.error('Chyba pri hromadnom vyhodnotení:', error)
+      notifyError('Chyba pri hromadnom vyhodnotení')
     } finally {
       setIsProcessingAll(false)
     }
@@ -155,8 +162,10 @@ export function PredictionResolver({ initialPredictions, ticket }: PredictionRes
       }
 
       router.refresh()
+      notifySuccess('Kurz bol upravený')
     } catch (error) {
       console.error('Chyba pri aktualizácii kurzu:', error)
+      notifyError('Chyba pri aktualizácii kurzu')
     } finally {
       setUpdatingId(null)
     }

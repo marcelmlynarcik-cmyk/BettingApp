@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { notifyError, notifySuccess } from '@/lib/notifications'
 import { Trash2 } from 'lucide-react'
 
 interface TicketActionsProps {
@@ -30,17 +31,11 @@ export function TicketActions({ ticketId, description }: TicketActionsProps) {
 
       if (ticketFetchError) throw ticketFetchError
 
-      const ticketTag = `[ticket:${ticketId}]`
+      // 1. Zmažeme tiket (cascade zmaže predictions aj finance_transactions cez ticket_id)
+      const { error: deleteTicketError } = await supabase.from('tickets').delete().eq('id', ticketId)
+      if (deleteTicketError) throw deleteTicketError
 
-      // 1. Zmažeme nové (tagované) finančné záznamy naviazané na tiket
-      const { error: deleteTaggedFinanceError } = await supabase
-        .from('finance_transactions')
-        .delete()
-        .ilike('description', `%${ticketTag}%`)
-
-      if (deleteTaggedFinanceError) throw deleteTaggedFinanceError
-
-      // 2. Fallback pre staršie (netagované) záznamy
+      // 2. Legacy fallback pre staršie (netagované) finance záznamy
       const ticketDescription = ticket.description || 'Nový tiket'
       const payoutDescriptionBase = ticket.description || 'Tiket'
       const stakeValue = Number(ticket.stake || 0)
@@ -76,20 +71,12 @@ export function TicketActions({ ticketId, description }: TicketActionsProps) {
         if (deleteOldPayoutErrorB) throw deleteOldPayoutErrorB
       }
 
-      // 3. Zmažeme predikcie (ak nie je nastavené cascade delete v DB)
-      const { error: deletePredictionsError } = await supabase.from('predictions').delete().eq('ticket_id', ticketId)
-      if (deletePredictionsError) throw deletePredictionsError
-
-      // 4. Zmažeme samotný tiket
-      const { error } = await supabase.from('tickets').delete().eq('id', ticketId)
-
-      if (error) throw error
-
       router.push('/tickets')
       router.refresh()
+      notifySuccess('Tiket bol zmazaný', description || 'Bez popisu')
     } catch (error) {
       console.error('Chyba pri mazaní tiketu:', error)
-      alert('Tiket sa nepodarilo zmazať.')
+      notifyError('Tiket sa nepodarilo zmazať')
       setIsDeleting(false)
     }
   }

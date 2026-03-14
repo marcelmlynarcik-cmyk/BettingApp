@@ -51,6 +51,7 @@ export interface Prediction {
 export interface FinanceTransaction {
   id: string
   type: 'deposit' | 'withdraw' | 'bet' | 'payout'
+  ticket_id: string | null
   amount: number
   date: string
   description: string | null

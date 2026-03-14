@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS predictions (
 CREATE TABLE IF NOT EXISTS finance_transactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   type TEXT NOT NULL CHECK (type IN ('deposit', 'withdraw', 'bet', 'payout')),
+  ticket_id UUID REFERENCES tickets(id) ON DELETE CASCADE,
   amount NUMERIC(10, 2) NOT NULL,
   date DATE NOT NULL,
   description TEXT,
@@ -67,3 +68,4 @@ CREATE INDEX IF NOT EXISTS idx_leagues_sport_id ON leagues(sport_id);
 CREATE INDEX IF NOT EXISTS idx_tickets_date ON tickets(date);
 CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);
 CREATE INDEX IF NOT EXISTS idx_finance_transactions_date ON finance_transactions(date);
+CREATE INDEX IF NOT EXISTS idx_finance_transactions_ticket_id ON finance_transactions(ticket_id);

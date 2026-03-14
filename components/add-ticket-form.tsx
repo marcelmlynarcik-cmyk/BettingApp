@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { User, Sport, League } from '@/lib/types'
-import { Plus, Trash2, X } from 'lucide-react'
+import { notifyError, notifySuccess } from '@/lib/notifications'
+import { X } from 'lucide-react'
 
 interface AddTicketFormProps {
   users: User[]
@@ -85,6 +86,7 @@ export function AddTicketForm({ users, sports, leagues, onClose }: AddTicketForm
 
     if (ticketError || !ticket) {
       console.error('Error creating ticket:', ticketError)
+      notifyError('Tiket sa nepodarilo vytvoriť')
       setIsSubmitting(false)
       return
     }
@@ -117,6 +119,7 @@ export function AddTicketForm({ users, sports, leagues, onClose }: AddTicketForm
       .from('finance_transactions')
       .insert({
         type: 'bet',
+        ticket_id: ticket.id,
         amount: -stakeNum,
         date,
         description: `Stávka na tiket: ${description || 'Nový tiket'} ${ticketTag}`,
@@ -124,6 +127,9 @@ export function AddTicketForm({ users, sports, leagues, onClose }: AddTicketForm
 
     if (transError) {
       console.error('Error creating finance transaction:', transError)
+      notifyError('Tiket vytvorený, ale bez finančného záznamu')
+    } else {
+      notifySuccess('Tiket bol vytvorený', description || 'Nový tiket')
     }
 
     setIsSubmitting(false)
