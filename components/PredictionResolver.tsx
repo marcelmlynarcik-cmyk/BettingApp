@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { notifyError, notifySuccess } from '@/lib/notifications'
@@ -17,11 +17,21 @@ export function PredictionResolver({ initialPredictions, ticket }: PredictionRes
   const router = useRouter()
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [isProcessingAll, setIsProcessingAll] = useState(false)
+  const [predictions, setPredictions] = useState(initialPredictions)
   const supabase = createClient()
+
+  useEffect(() => {
+    setPredictions(initialPredictions)
+  }, [initialPredictions])
 
   const handleUpdateStatus = async (predictionId: string, result: 'OK' | 'NOK') => {
     setUpdatingId(predictionId)
-    
+    const prevPredictions = predictions
+    const optimisticPredictions = predictions.map((p) =>
+      p.id === predictionId ? { ...p, result } : p
+    )
+    setPredictions(optimisticPredictions)
+
     try {
       const { error: updateError } = await supabase
         .from('predictions')
@@ -30,55 +40,50 @@ export function PredictionResolver({ initialPredictions, ticket }: PredictionRes
 
       if (updateError) throw updateError
 
-      const { data: allPredictions } = await supabase
-        .from('predictions')
-        .select('*')
-        .eq('ticket_id', ticket.id)
+      const allResolved = optimisticPredictions.every((p) => p.result !== 'Pending')
+      const allOK = optimisticPredictions.every((p) => p.result === 'OK')
+      const resolvedPredictions = optimisticPredictions as Prediction[]
 
-      if (allPredictions) {
-        const allResolved = allPredictions.every((p) => p.result !== 'Pending')
-        const allOK = allPredictions.every((p) => p.result === 'OK')
+      if (allResolved) {
+        const newStatus = allOK ? 'win' : 'loss'
+        const payout = allOK ? Number(ticket.stake) * Number(ticket.combined_odds) : 0
+        const totalProfit = payout - Number(ticket.stake)
 
-        if (allResolved) {
-          const newStatus = allOK ? 'win' : 'loss'
-          const payout = allOK ? Number(ticket.stake) * Number(ticket.combined_odds) : 0
-          const totalProfit = payout - Number(ticket.stake)
+        await supabase
+          .from('tickets')
+          .update({ status: newStatus, payout })
+          .eq('id', ticket.id)
 
-          await supabase
-            .from('tickets')
-            .update({ status: newStatus, payout })
-            .eq('id', ticket.id)
+        if (allOK) {
+          const profitPerPred = totalProfit / resolvedPredictions.length
+          for (const p of resolvedPredictions) {
+            await supabase.from('predictions').update({ profit: profitPerPred }).eq('id', p.id)
+          }
 
-          if (allOK) {
-            const profitPerPred = totalProfit / allPredictions.length
-            for (const p of allPredictions) {
-              await supabase.from('predictions').update({ profit: profitPerPred }).eq('id', p.id)
-            }
+          const ticketTag = `[ticket:${ticket.id}]`
+          await supabase.from('finance_transactions').insert({
+            type: 'payout',
+            ticket_id: ticket.id,
+            amount: payout,
+            date: new Date().toISOString().split('T')[0],
+            description: `Výplata za tiket: ${ticket.description || 'Tiket'} ${ticketTag}`,
+          })
+        } else {
+          const nokPredictions = resolvedPredictions.filter((p) => p.result === 'NOK')
+          const lossPerNok = -Number(ticket.stake) / nokPredictions.length
 
-            const ticketTag = `[ticket:${ticket.id}]`
-            await supabase.from('finance_transactions').insert({
-              type: 'payout',
-              ticket_id: ticket.id,
-              amount: payout,
-              date: new Date().toISOString().split('T')[0],
-              description: `Výplata za tiket: ${ticket.description || 'Tiket'} ${ticketTag}`,
-            })
-          } else {
-            const nokPredictions = allPredictions.filter((p) => p.result === 'NOK')
-            const lossPerNok = -Number(ticket.stake) / nokPredictions.length
-
-            for (const p of allPredictions) {
-              const profit = p.result === 'NOK' ? lossPerNok : 0
-              await supabase.from('predictions').update({ profit }).eq('id', p.id)
-            }
+          for (const p of resolvedPredictions) {
+            const profit = p.result === 'NOK' ? lossPerNok : 0
+            await supabase.from('predictions').update({ profit }).eq('id', p.id)
           }
         }
       }
-      
+
       router.refresh()
       notifySuccess('Tip bol vyhodnotený', `${result} pre tiket ${ticket.description || 'bez popisu'}`)
     } catch (error) {
       console.error('Chyba pri aktualizácii statusu:', error)
+      setPredictions(prevPredictions)
       notifyError('Chyba pri aktualizácii tipu')
     } finally {
       setUpdatingId(null)
@@ -89,6 +94,8 @@ export function PredictionResolver({ initialPredictions, ticket }: PredictionRes
     if (!confirm('Naozaj chcete označiť všetky tipy na tomto tikete ako OK?')) return
     
     setIsProcessingAll(true)
+    const prevPredictions = predictions
+    setPredictions((prev) => prev.map((p) => ({ ...p, result: 'OK' })))
     try {
       // 1. Aktualizujeme všetky predikcie na OK
       await supabase
@@ -127,6 +134,7 @@ export function PredictionResolver({ initialPredictions, ticket }: PredictionRes
       notifySuccess('Tiket označený ako výherný', ticket.description || 'Všetko OK')
     } catch (error) {
       console.error('Chyba pri hromadnom vyhodnotení:', error)
+      setPredictions(prevPredictions)
       notifyError('Chyba pri hromadnom vyhodnotení')
     } finally {
       setIsProcessingAll(false)
@@ -135,6 +143,10 @@ export function PredictionResolver({ initialPredictions, ticket }: PredictionRes
 
   const handleUpdateOdds = async (predictionId: string, newOdds: number) => {
     setUpdatingId(predictionId)
+    const prevPredictions = predictions
+    setPredictions((prev) =>
+      prev.map((p) => (p.id === predictionId ? { ...p, odds: newOdds } : p))
+    )
     try {
       const { error: updateError } = await supabase
         .from('predictions')
@@ -165,13 +177,14 @@ export function PredictionResolver({ initialPredictions, ticket }: PredictionRes
       notifySuccess('Kurz bol upravený')
     } catch (error) {
       console.error('Chyba pri aktualizácii kurzu:', error)
+      setPredictions(prevPredictions)
       notifyError('Chyba pri aktualizácii kurzu')
     } finally {
       setUpdatingId(null)
     }
   }
 
-  const hasPending = initialPredictions.some(p => p.result === 'Pending')
+  const hasPending = predictions.some(p => p.result === 'Pending')
 
   return (
     <div className="space-y-4">
@@ -187,7 +200,7 @@ export function PredictionResolver({ initialPredictions, ticket }: PredictionRes
       )}
 
       <div className="space-y-3">
-        {initialPredictions.map((pred) => (
+        {predictions.map((pred) => (
           <PredictionRow 
             key={pred.id} 
             prediction={pred} 
