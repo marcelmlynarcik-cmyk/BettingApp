@@ -1,12 +1,12 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { StatsCard } from '@/components/stats-card'
 import { StatisticsCharts } from './charts'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   Activity,
   BarChart3,
   DollarSign,
-  Percent,
+  Info,
   ShieldAlert,
   Target,
   TrendingUp,
@@ -527,6 +527,80 @@ export default async function StatisticsPage({
   ]
 
   const minTipsOptions = [0, 10, 20, 30]
+  const metricItems = [
+    {
+      key: 'ticket-hit-rate',
+      title: 'Ticket hit rate',
+      tooltip: 'Percento vyhraných uzavretých tiketov (win / (win + loss)).',
+      value: `${stats.overview.ticketHitRate.toFixed(1)}%`,
+      subtitle: formatDelta(stats.deltas.ticketHitRate, ' p.b.'),
+      icon: Target,
+      tone: 'success',
+    },
+    {
+      key: 'tip-hit-rate',
+      title: 'Tip hit rate',
+      tooltip: 'Percento správnych tipov zo všetkých uzavretých tipov (OK / (OK + NOK)).',
+      value: `${stats.overview.tipHitRate.toFixed(1)}%`,
+      subtitle: formatDelta(stats.deltas.tipHitRate, ' p.b.'),
+      icon: Activity,
+      tone: 'success',
+    },
+    {
+      key: 'yield',
+      title: 'Yield',
+      tooltip: 'Profitabilita stávkovania v percentách: zisk / vklady.',
+      value: `${stats.overview.yield >= 0 ? '+' : ''}${stats.overview.yield.toFixed(1)}%`,
+      subtitle: formatDelta(stats.deltas.yield, ' p.b.'),
+      icon: TrendingUp,
+      tone: stats.overview.yield >= 0 ? 'success' : 'danger',
+    },
+    {
+      key: 'period-profit',
+      title: 'Zisk obdobia',
+      tooltip: 'Súčet (payout - stake) za uzavreté tikety v zvolenom období.',
+      value: `${stats.overview.totalProfit >= 0 ? '+' : ''}${stats.overview.totalProfit.toLocaleString('sk-SK', { maximumFractionDigits: 0 })} Kč`,
+      subtitle: formatDelta(stats.deltas.totalProfit, ' Kč'),
+      icon: Wallet,
+      tone: stats.overview.totalProfit >= 0 ? 'success' : 'danger',
+    },
+    {
+      key: 'profit-factor',
+      title: 'Profit factor',
+      tooltip: 'Hrubé výhry delené hrubými prehrami. Hodnota nad 1 znamená ziskové výsledky.',
+      value: Number.isFinite(stats.overview.profitFactor) ? stats.overview.profitFactor.toFixed(2) : '∞',
+      subtitle: 'Hrubé výhry / hrubé prehry',
+      icon: BarChart3,
+      tone: stats.overview.profitFactor >= 1 ? 'success' : 'danger',
+    },
+    {
+      key: 'max-drawdown',
+      title: 'Max drawdown',
+      tooltip: 'Najväčší pokles od lokálneho maxima kumulatívneho zisku v období.',
+      value: `${stats.overview.maxDrawdown.toLocaleString('sk-SK', { maximumFractionDigits: 0 })} Kč`,
+      subtitle: 'Najväčší pokles od maxima',
+      icon: TrendingUp,
+      tone: 'danger',
+    },
+    {
+      key: 'avg-stake',
+      title: 'Priemerný vklad',
+      tooltip: 'Priemerná výška vkladu na uzavretý tiket v zvolenom období.',
+      value: `${stats.overview.avgStake.toLocaleString('sk-SK', { maximumFractionDigits: 0 })} Kč`,
+      subtitle: `${stats.overview.totalTickets} tiketov v období`,
+      icon: DollarSign,
+      tone: 'neutral',
+    },
+    {
+      key: 'bankroll',
+      title: 'Aktuálny bankroll',
+      tooltip: 'All-time stav účtu podľa tiketov a transakcií (vklady/výbery).',
+      value: `${stats.overview.closingBankroll.toLocaleString('sk-SK', { maximumFractionDigits: 0 })} Kč`,
+      subtitle: 'All-time podľa tiketov + vkladov/výberov',
+      icon: Wallet,
+      tone: stats.overview.closingBankroll >= 0 ? 'success' : 'danger',
+    },
+  ]
 
   return (
     <div className="space-y-6">
@@ -589,62 +663,52 @@ export default async function StatisticsPage({
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatsCard
-          title="Ticket hit rate"
-          value={`${stats.overview.ticketHitRate.toFixed(1)}%`}
-          subtitle={formatDelta(stats.deltas.ticketHitRate, ' p.b.')}
-          icon={Target}
-          variant="success"
-        />
-        <StatsCard
-          title="Tip hit rate"
-          value={`${stats.overview.tipHitRate.toFixed(1)}%`}
-          subtitle={formatDelta(stats.deltas.tipHitRate, ' p.b.')}
-          icon={Activity}
-          variant="success"
-        />
-        <StatsCard
-          title="Yield"
-          value={`${stats.overview.yield >= 0 ? '+' : ''}${stats.overview.yield.toFixed(1)}%`}
-          subtitle={formatDelta(stats.deltas.yield, ' p.b.')}
-          icon={Percent}
-          variant={stats.overview.yield >= 0 ? 'success' : 'destructive'}
-        />
-        <StatsCard
-          title="Zisk obdobia"
-          value={`${stats.overview.totalProfit >= 0 ? '+' : ''}${stats.overview.totalProfit.toLocaleString('sk-SK', { maximumFractionDigits: 0 })} Kč`}
-          subtitle={formatDelta(stats.deltas.totalProfit, ' Kč')}
-          icon={TrendingUp}
-          variant={stats.overview.totalProfit >= 0 ? 'success' : 'destructive'}
-        />
-        <StatsCard
-          title="Profit factor"
-          value={Number.isFinite(stats.overview.profitFactor) ? stats.overview.profitFactor.toFixed(2) : '∞'}
-          subtitle="Hrubé výhry / hrubé prehry"
-          icon={BarChart3}
-          variant={stats.overview.profitFactor >= 1 ? 'success' : 'destructive'}
-        />
-        <StatsCard
-          title="Max drawdown"
-          value={`${stats.overview.maxDrawdown.toLocaleString('sk-SK', { maximumFractionDigits: 0 })} Kč`}
-          subtitle="Najväčší pokles od maxima"
-          icon={TrendingUp}
-          variant="destructive"
-        />
-        <StatsCard
-          title="Priemerný vklad"
-          value={`${stats.overview.avgStake.toLocaleString('sk-SK', { maximumFractionDigits: 0 })} Kč`}
-          subtitle={`${stats.overview.totalTickets} tiketov v období`}
-          icon={DollarSign}
-        />
-        <StatsCard
-          title="Aktuálny bankroll"
-          value={`${stats.overview.closingBankroll.toLocaleString('sk-SK', { maximumFractionDigits: 0 })} Kč`}
-          subtitle="All-time podľa tiketov + vkladov/výberov"
-          icon={Wallet}
-          variant={stats.overview.closingBankroll >= 0 ? 'success' : 'destructive'}
-        />
+      <div className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
+        <div className="mb-3">
+          <h2 className="text-sm font-semibold tracking-tight text-card-foreground sm:text-base">KPI prehľad</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">Kompletný súhrn metrík v jednej karte. Prejdi kurzorom na info ikonu pre vysvetlenie.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {metricItems.map((item) => {
+            const Icon = item.icon
+            return (
+              <div key={item.key} className="rounded-lg border border-border/80 bg-background/60 p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{item.title}</p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          className="rounded-full p-0.5 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                          aria-label={`Vysvetlenie metriky ${item.title}`}
+                        >
+                          <Info className="h-3.5 w-3.5" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" sideOffset={6} className="max-w-64">
+                        {item.tooltip}
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <div
+                    className={`rounded-md p-1.5 ${
+                      item.tone === 'success'
+                        ? 'bg-emerald-500/10 text-emerald-600'
+                        : item.tone === 'danger'
+                          ? 'bg-rose-500/10 text-rose-600'
+                          : 'bg-secondary text-muted-foreground'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </div>
+                </div>
+                <p className="mt-2 text-xl font-black text-card-foreground">{item.value}</p>
+                <p className="mt-1 text-xs font-medium text-muted-foreground">{item.subtitle}</p>
+              </div>
+            )
+          })}
+        </div>
       </div>
 
       <StatisticsCharts
