@@ -343,8 +343,17 @@ function computeStreakStats(tickets: TicketRecord[]): StreakStats {
 }
 
 function buildWeekdayPerformance(tickets: TicketRecord[]): WeekdayPerformanceStat[] {
-  const labels = ['Ne', 'Po', 'Ut', 'St', 'Št', 'Pi', 'So']
-  const base = labels.map((dayLabel, dayKey) => ({
+  const orderedDays = [
+    { dayKey: 1, dayLabel: 'Po' },
+    { dayKey: 2, dayLabel: 'Ut' },
+    { dayKey: 3, dayLabel: 'St' },
+    { dayKey: 4, dayLabel: 'Št' },
+    { dayKey: 5, dayLabel: 'Pi' },
+    { dayKey: 6, dayLabel: 'So' },
+    { dayKey: 0, dayLabel: 'Ne' },
+  ]
+
+  const base = orderedDays.map(({ dayLabel, dayKey }) => ({
     dayKey,
     dayLabel,
     tickets: 0,
@@ -354,8 +363,8 @@ function buildWeekdayPerformance(tickets: TicketRecord[]): WeekdayPerformanceSta
 
   for (const ticket of tickets) {
     if (ticket.status !== 'win' && ticket.status !== 'loss') continue
-    const dayKey = new Date(ticket.date).getDay()
-    const slot = base[dayKey]
+    const jsDayKey = new Date(ticket.date).getDay()
+    const slot = base.find((day) => day.dayKey === jsDayKey)
     if (!slot) continue
 
     slot.tickets += 1
