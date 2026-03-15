@@ -20,6 +20,7 @@ type TicketRecord = {
   stake: number | string | null
   payout: number | string | null
   combined_odds: number | string | null
+  possible_win: number | string | null
   description: string | null
 }
 
@@ -146,8 +147,34 @@ type StatisticsData = {
 }
 
 function toNumber(value: unknown) {
-  const parsed = Number(value)
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+  const normalized = String(value ?? '')
+    .trim()
+    .replace(/\s+/g, '')
+    .replace(',', '.')
+  const parsed = Number.parseFloat(normalized)
   return Number.isFinite(parsed) ? parsed : 0
+}
+
+function normalizeTransactionAmount(tx: FinanceTransactionRecord) {
+  const raw = Math.abs(toNumber(tx.amount))
+  if (tx.type === 'deposit' || tx.type === 'payout') return raw
+  if (tx.type === 'withdraw' || tx.type === 'bet') return -raw
+  return toNumber(tx.amount)
+}
+
+function getTicketOdds(ticket: TicketRecord) {
+  const directOdds = toNumber(ticket.combined_odds)
+  if (directOdds >= 1) return directOdds
+
+  const stake = toNumber(ticket.stake)
+  const possibleWin = toNumber(ticket.possible_win)
+  if (stake > 0 && possibleWin > 0) {
+    const inferred = possibleWin / stake
+    if (Number.isFinite(inferred) && inferred >= 1) return inferred
+  }
+
+  return 0
 }
 
 function normalizeResult(value: unknown) {
@@ -363,7 +390,8 @@ function buildOddsRangePerformance(tickets: TicketRecord[]): OddsRangePerformanc
 
   for (const ticket of tickets) {
     if (ticket.status !== 'win' && ticket.status !== 'loss') continue
-    const odds = toNumber(ticket.combined_odds)
+    const odds = getTicketOdds(ticket)
+    if (odds < 1) continue
     const slot = bucket.find((item) => odds >= item.min && odds <= item.max)
     if (!slot) continue
 
@@ -425,7 +453,7 @@ function buildMonthlyCashflowStats(transactions: FinanceTransactionRecord[]): Mo
 
   for (const tx of transactions) {
     const key = getMonthKey(tx.date)
-    const amount = toNumber(tx.amount)
+    const normalizedAmount = normalizeTransactionAmount(tx)
 
     if (!byMonth[key]) {
       byMonth[key] = {
@@ -437,12 +465,12 @@ function buildMonthlyCashflowStats(transactions: FinanceTransactionRecord[]): Mo
       }
     }
 
-    if (tx.type === 'deposit') byMonth[key].deposits += Math.abs(amount)
-    if (tx.type === 'withdraw') byMonth[key].withdrawals += Math.abs(amount)
-    if (tx.type === 'bet') byMonth[key].bets += Math.abs(amount)
-    if (tx.type === 'payout') byMonth[key].payouts += Math.abs(amount)
+    if (tx.type === 'deposit') byMonth[key].deposits += Math.abs(normalizedAmount)
+    if (tx.type === 'withdraw') byMonth[key].withdrawals += Math.abs(normalizedAmount)
+    if (tx.type === 'bet') byMonth[key].bets += Math.abs(normalizedAmount)
+    if (tx.type === 'payout') byMonth[key].payouts += Math.abs(normalizedAmount)
 
-    byMonth[key].netCashflow += amount
+    byMonth[key].netCashflow += normalizedAmount
   }
 
   const monthKeys = Object.keys(byMonth).sort()
@@ -498,7 +526,7 @@ function computeOverview(tickets: TicketRecord[], predictions: PredictionRecord[
 
   const depositsWithdrawals = allCashflow
     .filter((tx) => tx.type === 'deposit' || tx.type === 'withdraw')
-    .reduce((sum, tx) => sum + toNumber(tx.amount), 0)
+    .reduce((sum, tx) => sum + normalizeTransactionAmount(tx), 0)
   const allTimeStake = allTickets.reduce((sum, ticket) => sum + toNumber(ticket.stake), 0)
   const allTimePayout = allTickets.reduce((sum, ticket) => sum + toNumber(ticket.payout), 0)
 
@@ -523,10 +551,10 @@ function computeQuickStats(tickets: TicketRecord[], weekdayPerformance: WeekdayP
   const pnl = resolved.map((ticket) => toNumber(ticket.payout) - toNumber(ticket.stake))
 
   const avgWinningOdds = winning.length > 0
-    ? winning.reduce((sum, ticket) => sum + toNumber(ticket.combined_odds), 0) / winning.length
+    ? winning.reduce((sum, ticket) => sum + getTicketOdds(ticket), 0) / winning.length
     : 0
   const avgLosingOdds = losing.length > 0
-    ? losing.reduce((sum, ticket) => sum + toNumber(ticket.combined_odds), 0) / losing.length
+    ? losing.reduce((sum, ticket) => sum + getTicketOdds(ticket), 0) / losing.length
     : 0
 
   const mean = pnl.length > 0 ? pnl.reduce((sum, value) => sum + value, 0) / pnl.length : 0
@@ -551,7 +579,7 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
 
     const [tickets, predictions, users, financeTransactions] = await Promise.all([
       fetchAll<TicketRecord>(async (from, to) =>
-        await supabase.from('tickets').select('id, status, date, stake, payout, combined_odds, description').order('date', { ascending: true }).range(from, to),
+        await supabase.from('tickets').select('id, status, date, stake, payout, combined_odds, possible_win, description').order('date', { ascending: true }).range(from, to),
       ),
       fetchAll<PredictionRecord>(async (from, to) =>
         await supabase.from('predictions').select('id, user_id, result, odds, tip_date').order('tip_date', { ascending: true, nullsFirst: true }).range(from, to),
@@ -620,7 +648,7 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
         id: ticket.id,
         description: ticket.description || 'Výherný tiket',
         date: ticket.date || null,
-        odds: toNumber(ticket.combined_odds),
+        odds: getTicketOdds(ticket),
         stake: toNumber(ticket.stake),
         payout: toNumber(ticket.payout),
         profit: toNumber(ticket.payout) - toNumber(ticket.stake),
@@ -836,7 +864,7 @@ export default async function StatisticsPage({
         </div>
       )}
 
-      <details className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5" open>
+      <details className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
         <summary className="cursor-pointer list-none select-none">
           <div className="flex items-center justify-between">
             <div>
