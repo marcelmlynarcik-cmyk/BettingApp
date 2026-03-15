@@ -3,13 +3,20 @@ import { Skeleton } from '@/components/ui/skeleton'
 export default function StatisticsLoading() {
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <Skeleton className="h-9 w-44" />
-        <Skeleton className="h-5 w-80 max-w-full" />
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div className="space-y-2">
+          <Skeleton className="h-9 w-44" />
+          <Skeleton className="h-5 w-80 max-w-full" />
+          <Skeleton className="h-4 w-72 max-w-full" />
+        </div>
+        <div className="flex gap-2">
+          <Skeleton className="h-10 w-64" />
+          <Skeleton className="h-10 w-56" />
+        </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, index) => (
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 8 }).map((_, index) => (
           <div
             key={index}
             className="rounded-xl border border-border bg-card p-4 shadow-sm"
