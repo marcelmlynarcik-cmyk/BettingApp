@@ -475,7 +475,7 @@ export function StatisticsCharts({
 
         <DashboardCard
           title="Výkon podľa kurzových pásiem"
-          subtitle="Porovnanie win rate a yield naprieč ticket odds"
+          subtitle="Porovnanie win rate a yield naprieč kurzami jednotlivých tipov"
         >
           <div className="h-64">
             {oddsRangePerformance.some((bucket) => bucket.tickets > 0) ? (

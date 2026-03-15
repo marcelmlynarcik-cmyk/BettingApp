@@ -29,6 +29,7 @@ type PredictionRecord = {
   user_id: string
   result: string | null
   odds: number | string | null
+  profit?: number | string | null
   tip_date: string | null
 }
 
@@ -371,7 +372,7 @@ function buildWeekdayPerformance(tickets: TicketRecord[]): WeekdayPerformanceSta
   }))
 }
 
-function buildOddsRangePerformance(tickets: TicketRecord[]): OddsRangePerformanceStat[] {
+function buildOddsRangePerformance(predictions: PredictionRecord[]): OddsRangePerformanceStat[] {
   const ranges = [
     { label: '1.00-1.49', min: 1, max: 1.49 },
     { label: '1.50-1.99', min: 1.5, max: 1.99 },
@@ -382,33 +383,33 @@ function buildOddsRangePerformance(tickets: TicketRecord[]): OddsRangePerformanc
 
   const bucket = ranges.map((range) => ({
     ...range,
-    tickets: 0,
+    tips: 0,
     wins: 0,
-    stake: 0,
+    stakeProxy: 0,
     profit: 0,
   }))
 
-  for (const ticket of tickets) {
-    if (ticket.status !== 'win' && ticket.status !== 'loss') continue
-    const odds = getTicketOdds(ticket)
+  for (const prediction of predictions) {
+    const result = normalizeResult(prediction.result)
+    if (result !== 'OK' && result !== 'NOK') continue
+
+    const odds = toNumber(prediction.odds)
     if (odds < 1) continue
     const slot = bucket.find((item) => odds >= item.min && odds <= item.max)
     if (!slot) continue
 
-    const stake = toNumber(ticket.stake)
-    const profit = toNumber(ticket.payout) - stake
-    slot.tickets += 1
-    if (ticket.status === 'win') slot.wins += 1
-    slot.stake += stake
-    slot.profit += profit
+    slot.tips += 1
+    if (result === 'OK') slot.wins += 1
+    slot.stakeProxy += 1
+    slot.profit += toNumber(prediction.profit)
   }
 
   return bucket.map((item) => ({
     label: item.label,
-    tickets: item.tickets,
-    winRate: item.tickets > 0 ? (item.wins / item.tickets) * 100 : 0,
+    tickets: item.tips,
+    winRate: item.tips > 0 ? (item.wins / item.tips) * 100 : 0,
     profit: item.profit,
-    yield: item.stake > 0 ? (item.profit / item.stake) * 100 : 0,
+    yield: item.stakeProxy > 0 ? (item.profit / item.stakeProxy) * 100 : 0,
   }))
 }
 
@@ -446,12 +447,14 @@ function buildMonthlyBettingStats(tickets: TicketRecord[]): MonthlyBettingStat[]
   })
 }
 
-function buildMonthlyCashflowStats(transactions: FinanceTransactionRecord[]): MonthlyCashflowStat[] {
-  if (transactions.length === 0) return []
+function buildMonthlyCashflowStats(transactions: FinanceTransactionRecord[], tickets: TicketRecord[]): MonthlyCashflowStat[] {
+  if (transactions.length === 0 && tickets.length === 0) return []
 
   const byMonth: Record<string, Omit<MonthlyCashflowStat, 'monthKey' | 'monthLabel' | 'cumulativeCashflow'>> = {}
 
   for (const tx of transactions) {
+    if (tx.type !== 'deposit' && tx.type !== 'withdraw') continue
+
     const key = getMonthKey(tx.date)
     const normalizedAmount = normalizeTransactionAmount(tx)
 
@@ -467,10 +470,33 @@ function buildMonthlyCashflowStats(transactions: FinanceTransactionRecord[]): Mo
 
     if (tx.type === 'deposit') byMonth[key].deposits += Math.abs(normalizedAmount)
     if (tx.type === 'withdraw') byMonth[key].withdrawals += Math.abs(normalizedAmount)
-    if (tx.type === 'bet') byMonth[key].bets += Math.abs(normalizedAmount)
-    if (tx.type === 'payout') byMonth[key].payouts += Math.abs(normalizedAmount)
 
     byMonth[key].netCashflow += normalizedAmount
+  }
+
+  for (const ticket of tickets) {
+    const key = getMonthKey(ticket.date)
+
+    if (!byMonth[key]) {
+      byMonth[key] = {
+        deposits: 0,
+        withdrawals: 0,
+        bets: 0,
+        payouts: 0,
+        netCashflow: 0,
+      }
+    }
+
+    const stake = Math.abs(toNumber(ticket.stake))
+    const payout = Math.abs(toNumber(ticket.payout))
+
+    byMonth[key].bets += stake
+    byMonth[key].netCashflow -= stake
+
+    if (ticket.status === 'win' && payout > 0) {
+      byMonth[key].payouts += payout
+      byMonth[key].netCashflow += payout
+    }
   }
 
   const monthKeys = Object.keys(byMonth).sort()
@@ -582,7 +608,7 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
         await supabase.from('tickets').select('id, status, date, stake, payout, combined_odds, possible_win, description').order('date', { ascending: true }).range(from, to),
       ),
       fetchAll<PredictionRecord>(async (from, to) =>
-        await supabase.from('predictions').select('id, user_id, result, odds, tip_date').order('tip_date', { ascending: true, nullsFirst: true }).range(from, to),
+        await supabase.from('predictions').select('id, user_id, result, odds, profit, tip_date').order('tip_date', { ascending: true, nullsFirst: true }).range(from, to),
       ),
       fetchAll<UserRecord>(async (from, to) =>
         await supabase.from('users').select('id, name').order('name', { ascending: true }).range(from, to),
@@ -613,7 +639,7 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
     const overview = computeOverview(filteredTickets, filteredPredictions, tickets, financeTransactions)
     const previousOverview = computeOverview(previousTickets, previousPredictions, tickets, financeTransactions)
     const weekdayPerformance = buildWeekdayPerformance(filteredTickets)
-    const oddsRangePerformance = buildOddsRangePerformance(filteredTickets)
+    const oddsRangePerformance = buildOddsRangePerformance(filteredPredictions)
     const streakStats = computeStreakStats(filteredTickets)
     const quickStats = computeQuickStats(filteredTickets, weekdayPerformance)
     const deltas = period === 'all'
@@ -667,7 +693,7 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
       tipperInsights,
       topTicketWins,
       monthlyBettingStats: buildMonthlyBettingStats(filteredTickets),
-      monthlyCashflowStats: buildMonthlyCashflowStats(filteredFinanceTransactions),
+      monthlyCashflowStats: buildMonthlyCashflowStats(filteredFinanceTransactions, filteredTickets),
       weekdayPerformance,
       oddsRangePerformance,
       streakStats,
