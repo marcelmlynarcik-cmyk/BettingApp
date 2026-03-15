@@ -3,10 +3,14 @@
 import { cn } from '@/lib/utils'
 import type { ReactNode } from 'react'
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
+  ComposedChart,
+  Legend,
   Line,
   LineChart,
   ReferenceLine,
@@ -57,11 +61,44 @@ type MonthlyCashflowStat = {
   cumulativeCashflow: number
 }
 
+type WeekdayPerformanceStat = {
+  dayKey: number
+  dayLabel: string
+  tickets: number
+  winRate: number
+  profit: number
+}
+
+type OddsRangePerformanceStat = {
+  label: string
+  tickets: number
+  winRate: number
+  profit: number
+  yield: number
+}
+
+type StreakStats = {
+  currentWin: number
+  currentLoss: number
+  maxWin: number
+  maxLoss: number
+}
+
 interface StatisticsChartsProps {
   tipperInsights: TipperInsight[]
   topTicketWins: TopTicketWin[]
   monthlyBettingStats: MonthlyBettingStat[]
   monthlyCashflowStats: MonthlyCashflowStat[]
+  weekdayPerformance: WeekdayPerformanceStat[]
+  oddsRangePerformance: OddsRangePerformanceStat[]
+  streakStats: StreakStats
+  quickStats: {
+    avgWinningOdds: number
+    avgLosingOdds: number
+    volatility: number
+    bestDayLabel: string
+    worstDayLabel: string
+  }
   minTips: number
 }
 
@@ -212,6 +249,10 @@ export function StatisticsCharts({
   topTicketWins,
   monthlyBettingStats,
   monthlyCashflowStats,
+  weekdayPerformance,
+  oddsRangePerformance,
+  streakStats,
+  quickStats,
   minTips,
 }: StatisticsChartsProps) {
   const sortedByWinRate = [...tipperInsights].sort((a, b) => b.winRate - a.winRate)
@@ -297,18 +338,20 @@ export function StatisticsCharts({
           <div className="h-60">
             {monthlyBettingStats.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={monthlyBettingStats} margin={{ top: 8, right: 8, left: 0, bottom: 6 }}>
+                <AreaChart data={monthlyBettingStats} margin={{ top: 8, right: 8, left: 0, bottom: 6 }}>
+                  <defs>
+                    <linearGradient id="profitGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(160, 70%, 40%)" stopOpacity={0.45} />
+                      <stop offset="95%" stopColor="hsl(160, 70%, 40%)" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                   <XAxis dataKey="monthLabel" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} minTickGap={20} />
                   <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${Number(v).toFixed(0)} Kč`} />
                   <ReferenceLine y={0} stroke="hsl(var(--border))" />
                   <Tooltip content={<BettingTooltip />} />
-                  <Bar dataKey="profit">
-                    {monthlyBettingStats.map((entry) => (
-                      <Cell key={entry.monthKey} fill={entry.profit >= 0 ? 'hsl(160, 70%, 40%)' : 'hsl(10, 72%, 55%)'} />
-                    ))}
-                  </Bar>
-                </BarChart>
+                  <Area type="monotone" dataKey="profit" stroke="hsl(160, 70%, 40%)" strokeWidth={2.5} fill="url(#profitGradient)" />
+                </AreaChart>
               </ResponsiveContainer>
             ) : (
               <EmptySection text="V tomto období nie sú uzavreté tikety." />
@@ -351,18 +394,17 @@ export function StatisticsCharts({
           <div className="h-60">
             {monthlyCashflowStats.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={monthlyCashflowStats} margin={{ top: 8, right: 8, left: 0, bottom: 6 }}>
+                <ComposedChart data={monthlyCashflowStats} margin={{ top: 8, right: 8, left: 0, bottom: 6 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                   <XAxis dataKey="monthLabel" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} minTickGap={20} />
                   <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${Number(v).toFixed(0)} Kč`} />
                   <ReferenceLine y={0} stroke="hsl(var(--border))" />
                   <Tooltip content={<CashflowTooltip />} />
-                  <Bar dataKey="netCashflow">
-                    {monthlyCashflowStats.map((entry) => (
-                      <Cell key={entry.monthKey} fill={entry.netCashflow >= 0 ? 'hsl(215, 90%, 55%)' : 'hsl(12, 85%, 56%)'} />
-                    ))}
-                  </Bar>
-                </BarChart>
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="deposits" name="Vklady" fill="hsl(145, 63%, 49%)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="withdrawals" name="Výbery" fill="hsl(10, 72%, 55%)" radius={[4, 4, 0, 0]} />
+                  <Line type="monotone" dataKey="netCashflow" name="Netto cashflow" stroke="hsl(215, 90%, 55%)" strokeWidth={2.5} dot={{ r: 2 }} />
+                </ComposedChart>
               </ResponsiveContainer>
             ) : (
               <EmptySection text="V tomto období nie sú finančné transakcie." />
@@ -389,6 +431,130 @@ export function StatisticsCharts({
             ) : (
               <EmptySection text="V tomto období nie sú finančné transakcie." />
             )}
+          </div>
+        </DashboardCard>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-3">
+        <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Pokročilé štatistiky</p>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <DashboardCard
+          title="Výkon podľa dňa v týždni"
+          subtitle="Kombinácia profitu a úspešnosti podľa dňa"
+        >
+          <div className="h-64">
+            {weekdayPerformance.some((day) => day.tickets > 0) ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={weekdayPerformance} margin={{ top: 8, right: 8, left: 0, bottom: 6 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis dataKey="dayLabel" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="left" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${Number(v).toFixed(0)} Kč`} />
+                  <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${Number(v).toFixed(0)}%`} />
+                  <Tooltip
+                    formatter={(value: number, name: string) => {
+                      if (name === 'Profit') return [`${value.toFixed(0)} Kč`, name]
+                      return [`${value.toFixed(1)}%`, name]
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar yAxisId="left" dataKey="profit" name="Profit" radius={[4, 4, 0, 0]}>
+                    {weekdayPerformance.map((entry) => (
+                      <Cell key={entry.dayKey} fill={entry.profit >= 0 ? 'hsl(160, 70%, 40%)' : 'hsl(10, 72%, 55%)'} />
+                    ))}
+                  </Bar>
+                  <Line yAxisId="right" type="monotone" dataKey="winRate" name="Win rate" stroke="hsl(210, 90%, 56%)" strokeWidth={2.5} dot={{ r: 2 }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptySection text="V tomto období nie sú uzavreté tikety." />
+            )}
+          </div>
+        </DashboardCard>
+
+        <DashboardCard
+          title="Výkon podľa kurzových pásiem"
+          subtitle="Porovnanie win rate a yield naprieč ticket odds"
+        >
+          <div className="h-64">
+            {oddsRangePerformance.some((bucket) => bucket.tickets > 0) ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={oddsRangePerformance} margin={{ top: 8, right: 8, left: 0, bottom: 6 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis dataKey="label" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="left" domain={[0, 100]} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${Number(v).toFixed(0)}%`} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${Number(v).toFixed(0)}%`} />
+                  <Tooltip
+                    formatter={(value: number, name: string) => [`${value.toFixed(1)}%`, name]}
+                    labelFormatter={(label, payload) => {
+                      const p = payload?.[0]?.payload
+                      if (!p) return String(label)
+                      return `${label} • ${p.tickets} tiketov`
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar yAxisId="left" dataKey="winRate" name="Win rate" fill="hsl(160, 70%, 40%)" radius={[4, 4, 0, 0]} />
+                  <Line yAxisId="right" type="monotone" dataKey="yield" name="Yield" stroke="hsl(280, 72%, 55%)" strokeWidth={2.5} dot={{ r: 2 }} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptySection text="V tomto období nie sú dáta pre kurzové pásma." />
+            )}
+          </div>
+        </DashboardCard>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <DashboardCard
+          title="Streak monitor"
+          subtitle="Aktuálne a historické série výsledkov"
+        >
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg border border-emerald-300/30 bg-emerald-500/5 p-3">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700/80">Aktuálna win séria</p>
+              <p className="mt-1 text-2xl font-black text-emerald-700">{streakStats.currentWin}</p>
+            </div>
+            <div className="rounded-lg border border-rose-300/30 bg-rose-500/5 p-3">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-rose-700/80">Aktuálna loss séria</p>
+              <p className="mt-1 text-2xl font-black text-rose-700">{streakStats.currentLoss}</p>
+            </div>
+            <div className="rounded-lg border border-emerald-300/30 bg-emerald-500/5 p-3">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700/80">Najdlhšia win séria</p>
+              <p className="mt-1 text-2xl font-black text-emerald-700">{streakStats.maxWin}</p>
+            </div>
+            <div className="rounded-lg border border-rose-300/30 bg-rose-500/5 p-3">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-rose-700/80">Najdlhšia loss séria</p>
+              <p className="mt-1 text-2xl font-black text-rose-700">{streakStats.maxLoss}</p>
+            </div>
+          </div>
+        </DashboardCard>
+
+        <DashboardCard
+          title="Quick stats lab"
+          subtitle="Doplnkové metriky pre detailnejší pohľad"
+        >
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="rounded-lg border border-border bg-muted/20 p-3">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Priemerný výherný kurz</p>
+              <p className="mt-1 text-lg font-black text-card-foreground">{quickStats.avgWinningOdds.toFixed(2)}</p>
+            </div>
+            <div className="rounded-lg border border-border bg-muted/20 p-3">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Priemerný prehratý kurz</p>
+              <p className="mt-1 text-lg font-black text-card-foreground">{quickStats.avgLosingOdds.toFixed(2)}</p>
+            </div>
+            <div className="rounded-lg border border-border bg-muted/20 p-3">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Volatilita P/L</p>
+              <p className="mt-1 text-lg font-black text-card-foreground">{quickStats.volatility.toFixed(0)} Kč</p>
+            </div>
+            <div className="rounded-lg border border-border bg-muted/20 p-3">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Najlepší deň</p>
+              <p className="mt-1 text-sm font-black text-emerald-700">{quickStats.bestDayLabel}</p>
+            </div>
+            <div className="rounded-lg border border-border bg-muted/20 p-3 sm:col-span-2">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Najslabší deň</p>
+              <p className="mt-1 text-sm font-black text-rose-700">{quickStats.worstDayLabel}</p>
+            </div>
           </div>
         </DashboardCard>
       </div>

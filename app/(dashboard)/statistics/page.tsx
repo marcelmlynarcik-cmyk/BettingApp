@@ -65,6 +65,29 @@ type MonthlyCashflowStat = {
   cumulativeCashflow: number
 }
 
+type WeekdayPerformanceStat = {
+  dayKey: number
+  dayLabel: string
+  tickets: number
+  winRate: number
+  profit: number
+}
+
+type OddsRangePerformanceStat = {
+  label: string
+  tickets: number
+  winRate: number
+  profit: number
+  yield: number
+}
+
+type StreakStats = {
+  currentWin: number
+  currentLoss: number
+  maxWin: number
+  maxLoss: number
+}
+
 type StatisticsData = {
   error?: string
   asOf: string
@@ -89,6 +112,13 @@ type StatisticsData = {
     ticketHitRate: number | null
     tipHitRate: number | null
   }
+  quickStats: {
+    avgWinningOdds: number
+    avgLosingOdds: number
+    volatility: number
+    bestDayLabel: string
+    worstDayLabel: string
+  }
   tipperInsights: Array<{
     name: string
     wins: number
@@ -110,6 +140,9 @@ type StatisticsData = {
   }>
   monthlyBettingStats: MonthlyBettingStat[]
   monthlyCashflowStats: MonthlyCashflowStat[]
+  weekdayPerformance: WeekdayPerformanceStat[]
+  oddsRangePerformance: OddsRangePerformanceStat[]
+  streakStats: StreakStats
 }
 
 function toNumber(value: unknown) {
@@ -245,6 +278,112 @@ function computeMaxDrawdown(tickets: TicketRecord[]) {
   return maxDrawdown
 }
 
+function computeStreakStats(tickets: TicketRecord[]): StreakStats {
+  const resolved = [...tickets]
+    .filter((ticket) => ticket.status === 'win' || ticket.status === 'loss')
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+  let currentWin = 0
+  let currentLoss = 0
+  let maxWin = 0
+  let maxLoss = 0
+  let trailingWin = 0
+  let trailingLoss = 0
+
+  for (const ticket of resolved) {
+    if (ticket.status === 'win') {
+      currentWin += 1
+      currentLoss = 0
+      trailingWin += 1
+      trailingLoss = 0
+    } else {
+      currentLoss += 1
+      currentWin = 0
+      trailingLoss += 1
+      trailingWin = 0
+    }
+    if (currentWin > maxWin) maxWin = currentWin
+    if (currentLoss > maxLoss) maxLoss = currentLoss
+  }
+
+  return {
+    currentWin: trailingWin,
+    currentLoss: trailingLoss,
+    maxWin,
+    maxLoss,
+  }
+}
+
+function buildWeekdayPerformance(tickets: TicketRecord[]): WeekdayPerformanceStat[] {
+  const labels = ['Ne', 'Po', 'Ut', 'St', 'Št', 'Pi', 'So']
+  const base = labels.map((dayLabel, dayKey) => ({
+    dayKey,
+    dayLabel,
+    tickets: 0,
+    wins: 0,
+    profit: 0,
+  }))
+
+  for (const ticket of tickets) {
+    if (ticket.status !== 'win' && ticket.status !== 'loss') continue
+    const dayKey = new Date(ticket.date).getDay()
+    const slot = base[dayKey]
+    if (!slot) continue
+
+    slot.tickets += 1
+    if (ticket.status === 'win') slot.wins += 1
+    slot.profit += toNumber(ticket.payout) - toNumber(ticket.stake)
+  }
+
+  return base.map((item) => ({
+    dayKey: item.dayKey,
+    dayLabel: item.dayLabel,
+    tickets: item.tickets,
+    winRate: item.tickets > 0 ? (item.wins / item.tickets) * 100 : 0,
+    profit: item.profit,
+  }))
+}
+
+function buildOddsRangePerformance(tickets: TicketRecord[]): OddsRangePerformanceStat[] {
+  const ranges = [
+    { label: '1.00-1.49', min: 1, max: 1.49 },
+    { label: '1.50-1.99', min: 1.5, max: 1.99 },
+    { label: '2.00-2.99', min: 2, max: 2.99 },
+    { label: '3.00-4.99', min: 3, max: 4.99 },
+    { label: '5.00+', min: 5, max: Number.POSITIVE_INFINITY },
+  ]
+
+  const bucket = ranges.map((range) => ({
+    ...range,
+    tickets: 0,
+    wins: 0,
+    stake: 0,
+    profit: 0,
+  }))
+
+  for (const ticket of tickets) {
+    if (ticket.status !== 'win' && ticket.status !== 'loss') continue
+    const odds = toNumber(ticket.combined_odds)
+    const slot = bucket.find((item) => odds >= item.min && odds <= item.max)
+    if (!slot) continue
+
+    const stake = toNumber(ticket.stake)
+    const profit = toNumber(ticket.payout) - stake
+    slot.tickets += 1
+    if (ticket.status === 'win') slot.wins += 1
+    slot.stake += stake
+    slot.profit += profit
+  }
+
+  return bucket.map((item) => ({
+    label: item.label,
+    tickets: item.tickets,
+    winRate: item.tickets > 0 ? (item.wins / item.tickets) * 100 : 0,
+    profit: item.profit,
+    yield: item.stake > 0 ? (item.profit / item.stake) * 100 : 0,
+  }))
+}
+
 function buildMonthlyBettingStats(tickets: TicketRecord[]): MonthlyBettingStat[] {
   const resolved = tickets.filter((ticket) => ticket.status === 'win' || ticket.status === 'loss')
   if (resolved.length === 0) return []
@@ -377,6 +516,35 @@ function computeOverview(tickets: TicketRecord[], predictions: PredictionRecord[
   }
 }
 
+function computeQuickStats(tickets: TicketRecord[], weekdayPerformance: WeekdayPerformanceStat[]) {
+  const resolved = tickets.filter((ticket) => ticket.status === 'win' || ticket.status === 'loss')
+  const winning = resolved.filter((ticket) => ticket.status === 'win')
+  const losing = resolved.filter((ticket) => ticket.status === 'loss')
+  const pnl = resolved.map((ticket) => toNumber(ticket.payout) - toNumber(ticket.stake))
+
+  const avgWinningOdds = winning.length > 0
+    ? winning.reduce((sum, ticket) => sum + toNumber(ticket.combined_odds), 0) / winning.length
+    : 0
+  const avgLosingOdds = losing.length > 0
+    ? losing.reduce((sum, ticket) => sum + toNumber(ticket.combined_odds), 0) / losing.length
+    : 0
+
+  const mean = pnl.length > 0 ? pnl.reduce((sum, value) => sum + value, 0) / pnl.length : 0
+  const variance = pnl.length > 0 ? pnl.reduce((sum, value) => sum + (value - mean) ** 2, 0) / pnl.length : 0
+  const volatility = Math.sqrt(variance)
+
+  const bestDay = [...weekdayPerformance].sort((a, b) => b.profit - a.profit)[0]
+  const worstDay = [...weekdayPerformance].sort((a, b) => a.profit - b.profit)[0]
+
+  return {
+    avgWinningOdds,
+    avgLosingOdds,
+    volatility,
+    bestDayLabel: bestDay ? `${bestDay.dayLabel} (${bestDay.profit.toFixed(0)} Kč)` : '-',
+    worstDayLabel: worstDay ? `${worstDay.dayLabel} (${worstDay.profit.toFixed(0)} Kč)` : '-',
+  }
+}
+
 async function getStatistics(period: PeriodKey, minTips: number): Promise<StatisticsData> {
   try {
     const supabase = await createClient()
@@ -416,6 +584,10 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
 
     const overview = computeOverview(filteredTickets, filteredPredictions, tickets, financeTransactions)
     const previousOverview = computeOverview(previousTickets, previousPredictions, tickets, financeTransactions)
+    const weekdayPerformance = buildWeekdayPerformance(filteredTickets)
+    const oddsRangePerformance = buildOddsRangePerformance(filteredTickets)
+    const streakStats = computeStreakStats(filteredTickets)
+    const quickStats = computeQuickStats(filteredTickets, weekdayPerformance)
     const deltas = period === 'all'
       ? { totalProfit: null, yield: null, ticketHitRate: null, tipHitRate: null }
       : computeDeltas(overview, previousOverview)
@@ -463,10 +635,14 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
       rangeLabel: formatPeriodLabel(period),
       overview,
       deltas,
+      quickStats,
       tipperInsights,
       topTicketWins,
       monthlyBettingStats: buildMonthlyBettingStats(filteredTickets),
       monthlyCashflowStats: buildMonthlyCashflowStats(filteredFinanceTransactions),
+      weekdayPerformance,
+      oddsRangePerformance,
+      streakStats,
     }
   } catch (error) {
     return {
@@ -493,10 +669,25 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
         ticketHitRate: null,
         tipHitRate: null,
       },
+      quickStats: {
+        avgWinningOdds: 0,
+        avgLosingOdds: 0,
+        volatility: 0,
+        bestDayLabel: '-',
+        worstDayLabel: '-',
+      },
       tipperInsights: [],
       topTicketWins: [],
       monthlyBettingStats: [],
       monthlyCashflowStats: [],
+      weekdayPerformance: [],
+      oddsRangePerformance: [],
+      streakStats: {
+        currentWin: 0,
+        currentLoss: 0,
+        maxWin: 0,
+        maxLoss: 0,
+      },
     }
   }
 }
@@ -716,6 +907,10 @@ export default async function StatisticsPage({
         topTicketWins={stats.topTicketWins}
         monthlyBettingStats={stats.monthlyBettingStats}
         monthlyCashflowStats={stats.monthlyCashflowStats}
+        weekdayPerformance={stats.weekdayPerformance}
+        oddsRangePerformance={stats.oddsRangePerformance}
+        streakStats={stats.streakStats}
+        quickStats={stats.quickStats}
         minTips={stats.minTips}
       />
     </div>
