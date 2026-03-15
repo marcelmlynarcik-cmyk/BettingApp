@@ -17,84 +17,6 @@ import { PredictionRow } from '@/components/PredictionRow'
 import { TicketActions } from '@/components/TicketActions'
 import type { Ticket, Prediction, User, Sport, League } from '@/lib/types'
 
-type UrlPreview = {
-  title: string | null
-  description: string | null
-  image: string | null
-  siteName: string | null
-  domain: string
-}
-
-function extractMeta(html: string, property: string) {
-  const escapedProperty = property.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const regexes = [
-    new RegExp(`<meta[^>]+property=["']${escapedProperty}["'][^>]+content=["']([^"']+)["'][^>]*>`, 'i'),
-    new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']${escapedProperty}["'][^>]*>`, 'i'),
-    new RegExp(`<meta[^>]+name=["']${escapedProperty}["'][^>]+content=["']([^"']+)["'][^>]*>`, 'i'),
-    new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+name=["']${escapedProperty}["'][^>]*>`, 'i'),
-  ]
-
-  for (const regex of regexes) {
-    const match = html.match(regex)
-    if (match?.[1]) return match[1].trim()
-  }
-
-  return null
-}
-
-function extractTitle(html: string) {
-  const match = html.match(/<title[^>]*>([^<]+)<\/title>/i)
-  return match?.[1]?.trim() || null
-}
-
-async function getTicketUrlPreview(url: string): Promise<UrlPreview | null> {
-  try {
-    const parsedUrl = new URL(url)
-    const domain = parsedUrl.hostname.replace(/^www\./, '')
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 3500)
-
-    const response = await fetch(url, {
-      method: 'GET',
-      redirect: 'follow',
-      cache: 'no-store',
-      signal: controller.signal,
-      headers: {
-        'user-agent': 'Mozilla/5.0 (compatible; BettingApp/1.0; +https://example.com/bot-preview)',
-      },
-    })
-    clearTimeout(timeout)
-
-    if (!response.ok) {
-      return {
-        title: null,
-        description: null,
-        image: null,
-        siteName: null,
-        domain,
-      }
-    }
-
-    const html = (await response.text()).slice(0, 150000)
-
-    const title = extractMeta(html, 'og:title') || extractMeta(html, 'twitter:title') || extractTitle(html)
-    const description = extractMeta(html, 'og:description') || extractMeta(html, 'twitter:description') || extractMeta(html, 'description')
-    const siteName = extractMeta(html, 'og:site_name')
-    const imageRaw = extractMeta(html, 'og:image') || extractMeta(html, 'twitter:image')
-    const image = imageRaw ? new URL(imageRaw, url).toString() : null
-
-    return {
-      title,
-      description,
-      image,
-      siteName,
-      domain,
-    }
-  } catch {
-    return null
-  }
-}
-
 async function getTicketData(id: string) {
   const supabase = await createClient()
 
@@ -153,7 +75,6 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
   }
 
   const { ticket, predictions } = data
-  const ticketUrlPreview = ticket.ticket_url ? await getTicketUrlPreview(ticket.ticket_url) : null
 
   const getStatusLabel = (status: Ticket['status']) => {
     switch (status) {
@@ -201,48 +122,24 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
           </div>
 
           {ticket.ticket_url && (
-            <div className="rounded-xl border border-border bg-emerald-500/5 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-full bg-emerald-500/10 p-2">
-                    <ExternalLink className="h-4 w-4 text-emerald-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-bold text-card-foreground">Externý odkaz</p>
-                    <p className="text-xs text-muted-foreground">Náhľad originálneho tiketu u stávkovej kancelárie</p>
-                  </div>
+            <div className="rounded-xl border border-border bg-emerald-500/5 p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-emerald-500/10 p-2">
+                  <ExternalLink className="h-4 w-4 text-emerald-500" />
                 </div>
-                <a 
-                  href={ticket.ticket_url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-emerald-400 transition-colors shadow-lg shadow-emerald-500/20"
-                >
-                  Otvoriť
-                </a>
+                <div>
+                  <p className="text-sm font-bold text-card-foreground">Externý odkaz</p>
+                  <p className="text-xs text-muted-foreground">Zobraziť originál tiketu u stávkovej kancelárie</p>
+                </div>
               </div>
-
-              <div className="mt-3 rounded-lg border border-border/70 bg-card p-3">
-                {ticketUrlPreview?.image && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={ticketUrlPreview.image}
-                    alt="Náhľad tiketu"
-                    className="mb-3 h-40 w-full rounded-md border border-border/60 object-cover"
-                    loading="lazy"
-                  />
-                )}
-                <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
-                  {ticketUrlPreview?.siteName || ticketUrlPreview?.domain || 'Externá stránka'}
-                </p>
-                <p className="mt-1 text-sm font-semibold text-card-foreground">
-                  {ticketUrlPreview?.title || 'Náhľad nie je dostupný pre túto URL'}
-                </p>
-                {ticketUrlPreview?.description && (
-                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{ticketUrlPreview.description}</p>
-                )}
-                <p className="mt-2 truncate text-xs text-muted-foreground/80">{ticket.ticket_url}</p>
-              </div>
+              <a 
+                href={ticket.ticket_url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-emerald-400 transition-colors shadow-lg shadow-emerald-500/20"
+              >
+                Otvoriť
+              </a>
             </div>
           )}
         </div>
