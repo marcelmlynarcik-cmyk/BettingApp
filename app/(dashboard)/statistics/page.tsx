@@ -695,17 +695,16 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
 export default async function StatisticsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ period?: string; minTips?: string }>
+  searchParams?: Promise<{ period?: string }>
 }) {
   const params = (await searchParams) || {}
 
-  const periodCandidate = String(params.period || '30d').toLowerCase()
+  const periodCandidate = String(params.period || 'all').toLowerCase()
   const period: PeriodKey = periodCandidate === '7d' || periodCandidate === '30d' || periodCandidate === '90d' || periodCandidate === 'ytd' || periodCandidate === 'all'
     ? periodCandidate
-    : '30d'
+    : 'all'
 
-  const minTipsRaw = Number.parseInt(String(params.minTips || '20'), 10)
-  const minTips = Number.isFinite(minTipsRaw) && minTipsRaw >= 0 ? minTipsRaw : 20
+  const minTips = 0
 
   const stats = await getStatistics(period, minTips)
 
@@ -717,7 +716,6 @@ export default async function StatisticsPage({
     { value: 'all', label: 'ALL' },
   ]
 
-  const minTipsOptions = [0, 10, 20, 30]
   const metricItems = [
     {
       key: 'ticket-hit-rate',
@@ -809,7 +807,7 @@ export default async function StatisticsPage({
             {periodOptions.map((option) => (
               <Link
                 key={option.value}
-                href={`/statistics?period=${option.value}&minTips=${stats.minTips}`}
+                href={`/statistics?period=${option.value}`}
                 className={`rounded-lg px-3 py-1.5 text-xs font-black uppercase tracking-wider transition-colors ${
                   stats.period === option.value
                     ? 'bg-slate-900 text-white'
@@ -817,22 +815,6 @@ export default async function StatisticsPage({
                 }`}
               >
                 {option.label}
-              </Link>
-            ))}
-          </div>
-
-          <div className="flex rounded-xl border border-border bg-card p-1">
-            {minTipsOptions.map((value) => (
-              <Link
-                key={value}
-                href={`/statistics?period=${stats.period}&minTips=${value}`}
-                className={`rounded-lg px-3 py-1.5 text-xs font-black uppercase tracking-wider transition-colors ${
-                  stats.minTips === value
-                    ? 'bg-emerald-600 text-white'
-                    : 'text-muted-foreground hover:bg-secondary'
-                }`}
-              >
-                min {value}
               </Link>
             ))}
           </div>
@@ -846,7 +828,7 @@ export default async function StatisticsPage({
             <div>
               <p className="font-bold text-rose-700">Načítanie štatistík zlyhalo</p>
               <p className="text-sm text-rose-700/90">{stats.error}</p>
-              <Link href={`/statistics?period=${stats.period}&minTips=${stats.minTips}`} className="mt-2 inline-block text-xs font-black uppercase tracking-widest text-rose-700 underline">
+              <Link href={`/statistics?period=${stats.period}`} className="mt-2 inline-block text-xs font-black uppercase tracking-widest text-rose-700 underline">
                 Skúsiť znova
               </Link>
             </div>
@@ -854,12 +836,19 @@ export default async function StatisticsPage({
         </div>
       )}
 
-      <div className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
-        <div className="mb-3">
-          <h2 className="text-sm font-semibold tracking-tight text-card-foreground sm:text-base">KPI prehľad</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">Kompletný súhrn metrík v jednej karte. Prejdi kurzorom na info ikonu pre vysvetlenie.</p>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <details className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5" open>
+        <summary className="cursor-pointer list-none select-none">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold tracking-tight text-card-foreground sm:text-base">KPI prehľad</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">Rozbaľovací súhrn metrík. Prejdi kurzorom na info ikonu pre vysvetlenie.</p>
+            </div>
+            <span className="rounded-md border border-border px-2 py-1 text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+              Rozbaliť/Zbaliť
+            </span>
+          </div>
+        </summary>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {metricItems.map((item) => {
             const Icon = item.icon
             return (
@@ -900,7 +889,7 @@ export default async function StatisticsPage({
             )
           })}
         </div>
-      </div>
+      </details>
 
       <StatisticsCharts
         tipperInsights={stats.tipperInsights}
