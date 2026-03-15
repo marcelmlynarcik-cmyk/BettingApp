@@ -31,6 +31,8 @@ type TipperInsight = {
   highestWonOdds: number
   totalCorrect: number
   trend8w: number[]
+  longestOkStreak: number
+  longestNokStreak: number
   bestSport: { name: string; yield: number; tips: number } | null
   bestLeague: { name: string; yield: number; tips: number } | null
 }
@@ -307,6 +309,8 @@ export function StatisticsCharts({
   const sortedByAvgOdds = [...tipperInsights].sort((a, b) => b.avgOdds - a.avgOdds)
   const sortedByHighestWonOdds = [...tipperInsights].sort((a, b) => b.highestWonOdds - a.highestWonOdds)
   const sortedByCorrectTips = [...tipperInsights].sort((a, b) => b.totalCorrect - a.totalCorrect)
+  const sortedByLongestOkStreak = [...tipperInsights].sort((a, b) => b.longestOkStreak - a.longestOkStreak)
+  const sortedByLongestNokStreak = [...tipperInsights].sort((a, b) => b.longestNokStreak - a.longestNokStreak)
 
   const topTicketWinChartData = topTicketWins.map((ticket, index) => ({
     ...ticket,
@@ -375,6 +379,32 @@ export function StatisticsCharts({
               name: user.name,
               value: user.totalCorrect,
               valueLabel: String(user.totalCorrect),
+            }))}
+          />
+
+          <RankingCard
+            title="Najdlhšia OK šnúra"
+            subtitle="Najdlhšia séria správnych tipov"
+            barClassName="bg-gradient-to-r from-lime-500 to-emerald-500"
+            emptyText={`Žiadny tipér nemá aspoň ${minTips} tipov v tomto období.`}
+            items={sortedByLongestOkStreak.map((user) => ({
+              id: `${user.name}-ok-streak`,
+              name: user.name,
+              value: user.longestOkStreak,
+              valueLabel: String(user.longestOkStreak),
+            }))}
+          />
+
+          <RankingCard
+            title="Najdlhšia NOK šnúra"
+            subtitle="Najdlhšia séria neúspešných tipov"
+            barClassName="bg-gradient-to-r from-rose-500 to-red-500"
+            emptyText={`Žiadny tipér nemá aspoň ${minTips} tipov v tomto období.`}
+            items={sortedByLongestNokStreak.map((user) => ({
+              id: `${user.name}-nok-streak`,
+              name: user.name,
+              value: user.longestNokStreak,
+              valueLabel: String(user.longestNokStreak),
             }))}
           />
         </div>

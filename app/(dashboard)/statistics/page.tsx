@@ -138,6 +138,8 @@ type StatisticsData = {
     highestWonOdds: number
     totalCorrect: number
     trend8w: number[]
+    longestOkStreak: number
+    longestNokStreak: number
     bestSport: { name: string; yield: number; tips: number } | null
     bestLeague: { name: string; yield: number; tips: number } | null
   }>
@@ -753,6 +755,35 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
         const weekProfitMap = new Map<string, number>()
         const sportStats = new Map<string, { tips: number; stake: number; profit: number }>()
         const leagueStats = new Map<string, { tips: number; stake: number; profit: number }>()
+        const sortedResolvedPreds = [...userPreds]
+          .filter((prediction) => {
+            const result = normalizeResult(prediction.result)
+            return result === 'OK' || result === 'NOK'
+          })
+          .sort((a, b) => {
+            const ad = getPredictionDate(a, ticketById) || ''
+            const bd = getPredictionDate(b, ticketById) || ''
+            return ad.localeCompare(bd)
+          })
+
+        let longestOkStreak = 0
+        let longestNokStreak = 0
+        let currentOkStreak = 0
+        let currentNokStreak = 0
+
+        for (const prediction of sortedResolvedPreds) {
+          const result = normalizeResult(prediction.result)
+          if (result === 'OK') {
+            currentOkStreak += 1
+            currentNokStreak = 0
+          } else {
+            currentNokStreak += 1
+            currentOkStreak = 0
+          }
+
+          if (currentOkStreak > longestOkStreak) longestOkStreak = currentOkStreak
+          if (currentNokStreak > longestNokStreak) longestNokStreak = currentNokStreak
+        }
 
         for (const prediction of userPreds) {
           const result = normalizeResult(prediction.result)
@@ -813,6 +844,8 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
           highestWonOdds: highestWonOddsByUser.get(user.id) ?? 0,
           totalCorrect: wins,
           trend8w,
+          longestOkStreak,
+          longestNokStreak,
           bestSport,
           bestLeague,
         }
