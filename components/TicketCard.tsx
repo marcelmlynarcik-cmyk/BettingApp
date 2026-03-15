@@ -31,6 +31,7 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
   const pendingAmount = Number(ticket.possible_win || 0)
   const [isExpanded, setIsExpanded] = useState(false)
   const predictions = ticket.predictions || []
+  const predictionSegments = Array.from({ length: 3 }, (_, index) => predictions[index]?.result || 'Pending')
 
   const getStatusIcon = (status: Ticket['status']) => {
     switch (status) {
@@ -51,6 +52,17 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
         return 'Prehra'
       case 'pending':
         return 'Čaká sa'
+    }
+  }
+
+  const getSegmentClassName = (result: 'OK' | 'NOK' | 'Pending') => {
+    switch (result) {
+      case 'OK':
+        return 'border-emerald-500/30 bg-gradient-to-r from-emerald-400 to-emerald-500 shadow-[0_0_18px_rgba(16,185,129,0.45)]'
+      case 'NOK':
+        return 'border-rose-500/30 bg-gradient-to-r from-rose-400 to-rose-500 shadow-[0_0_18px_rgba(244,63,94,0.45)]'
+      case 'Pending':
+        return 'border-amber-500/30 bg-gradient-to-r from-amber-400 to-amber-500 shadow-[0_0_18px_rgba(245,158,11,0.45)]'
     }
   }
 
@@ -95,6 +107,18 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             {ticket.status === 'pending' ? 'Možná výhra' : getStatusLabel(ticket.status)}
           </p>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <p className="mb-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">Stav tipov</p>
+        <div className="grid grid-cols-3 gap-1 rounded-lg border border-border/70 bg-muted/30 p-1">
+          {predictionSegments.map((result, index) => (
+            <div
+              key={`${ticket.id}-segment-${index}`}
+              className={cn('h-2.5 rounded-md border transition-all duration-300', getSegmentClassName(result))}
+            />
+          ))}
         </div>
       </div>
 
