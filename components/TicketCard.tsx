@@ -36,11 +36,11 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
   const getStatusIcon = (status: Ticket['status']) => {
     switch (status) {
       case 'win':
-        return <CheckCircle2 className="h-5 w-5 text-primary" />
+        return <CheckCircle2 className="h-5 w-5 text-emerald-600" />
       case 'loss':
-        return <XCircle className="h-5 w-5 text-destructive" />
+        return <XCircle className="h-5 w-5 text-rose-600" />
       case 'pending':
-        return <Clock className="h-5 w-5 text-accent" />
+        return <Clock className="h-5 w-5 text-amber-600" />
     }
   }
 
@@ -66,13 +66,24 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
     }
   }
 
+  const getStatusIconWrapClass = (status: Ticket['status']) => {
+    switch (status) {
+      case 'win':
+        return 'bg-emerald-500/15 ring-1 ring-emerald-500/35'
+      case 'loss':
+        return 'bg-rose-500/15 ring-1 ring-rose-500/35'
+      case 'pending':
+        return 'bg-amber-500/15 ring-1 ring-amber-500/35'
+    }
+  }
+
   return (
     <div
       className="group rounded-xl border border-border bg-card p-3 shadow-sm transition-all hover:bg-secondary/40"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="rounded-full bg-secondary p-1.5 group-hover:bg-muted">
+          <div className={cn('rounded-full p-1.5 transition-colors', getStatusIconWrapClass(ticket.status))}>
             {getStatusIcon(ticket.status)}
           </div>
           <div>
