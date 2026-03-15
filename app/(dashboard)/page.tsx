@@ -17,6 +17,20 @@ async function getDashboardData() {
     .from('tickets')
     .select('*, predictions(*)')
 
+  const { data: recentTicketsData } = await supabase
+    .from('tickets')
+    .select(`
+      *,
+      predictions (
+        *,
+        user:users (*),
+        sport:sports (*),
+        league:leagues (*)
+      )
+    `)
+    .order('created_at', { ascending: false })
+    .limit(5)
+
   // Get only deposit/withdraw transactions (following user formula)
   const { data: cashflow } = await supabase
     .from('finance_transactions')
@@ -47,11 +61,6 @@ async function getDashboardData() {
     .lte('tip_date', lastDay)
 
   const allTicketsSafe = allTickets || []
-
-  // Get recent tickets
-  const recentTickets = [...allTicketsSafe]
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 5)
 
   // Calculate Overview Stats using all tickets (same logic as statistics page)
   const stats: OverviewStats = allTicketsSafe.length > 0 ? {
@@ -116,7 +125,7 @@ async function getDashboardData() {
     pendingPotentialWins,
     todayProfit,
     openTickets,
-    recentTickets: (recentTickets as TicketType[]) || []
+    recentTickets: (recentTicketsData as TicketType[]) || []
   }
 }
 
@@ -203,7 +212,7 @@ export default async function OverviewPage() {
               </div>
             ) : (
               recentTickets.map((ticket) => (
-                <TicketCard key={ticket.id} ticket={ticket} />
+                <TicketCard key={ticket.id} ticket={ticket} expandable />
               ))
             )}
           </div>

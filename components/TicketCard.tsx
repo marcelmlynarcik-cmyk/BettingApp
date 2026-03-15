@@ -68,18 +68,18 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
 
   return (
     <div
-      className="group rounded-xl border border-border bg-card p-4 shadow-md transition-all hover:bg-secondary/40"
+      className="group rounded-xl border border-border bg-card p-3 shadow-sm transition-all hover:bg-secondary/40"
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="rounded-full bg-secondary p-2 group-hover:bg-muted">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="rounded-full bg-secondary p-1.5 group-hover:bg-muted">
             {getStatusIcon(ticket.status)}
           </div>
           <div>
-            <p className="font-semibold text-card-foreground">
+            <p className="text-sm font-semibold text-card-foreground">
               {ticket.description || `Tiket ${format(new Date(ticket.date), 'd.M.')}`}
             </p>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               {format(new Date(ticket.date), 'd. MMMM yyyy')}
               {showRelativeDate && <span> ({relativeDateLabel(ticket.date)})</span>}
               {' • '}
@@ -91,7 +91,7 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
         <div className="text-right">
           <p
             className={cn(
-              'text-lg font-bold',
+              'text-base font-bold',
               ticket.status === 'win' && 'text-primary',
               ticket.status === 'loss' && 'text-destructive',
               ticket.status === 'pending' && 'text-amber-500'
@@ -104,29 +104,29 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
                 ? (pendingAmount > 0 ? pendingAmount : ticket.stake).toFixed(0)
                 : ticket.stake.toFixed(0)} Kč
           </p>
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
             {ticket.status === 'pending' ? 'Možná výhra' : getStatusLabel(ticket.status)}
           </p>
         </div>
       </div>
 
-      <div className="mt-4">
+      <div className="mt-3">
         <p className="mb-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">Stav tipov</p>
         <div className="grid grid-cols-3 gap-1 rounded-lg border border-border/70 bg-muted/30 p-1">
           {predictionSegments.map((result, index) => (
             <div
               key={`${ticket.id}-segment-${index}`}
-              className={cn('h-2.5 rounded-md border transition-all duration-300', getSegmentClassName(result))}
+              className={cn('h-2 rounded-md border transition-all duration-300', getSegmentClassName(result))}
             />
           ))}
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between">
+      <div className="mt-2.5 flex items-center justify-between">
         {expandable && predictions.length > 0 ? (
           <button
             onClick={() => setIsExpanded((prev) => !prev)}
-            className="inline-flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-bold uppercase tracking-wide text-muted-foreground hover:bg-secondary"
+            className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground hover:bg-secondary"
           >
             {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             {isExpanded ? 'Skryť tipy' : `Zobraziť tipy (${predictions.length})`}
@@ -137,7 +137,7 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
 
         <button
           onClick={() => router.push(`/tickets/${ticket.id}`)}
-          className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-bold uppercase tracking-wide text-emerald-700 hover:bg-emerald-500/20"
+          className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-700 hover:bg-emerald-500/20"
         >
           Detail
           <ExternalLink className="h-3.5 w-3.5" />
@@ -145,7 +145,7 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
       </div>
 
       {expandable && isExpanded && predictions.length > 0 && (
-        <div className="mt-3 space-y-2 border-t border-border pt-3">
+        <div className="mt-2.5 space-y-2 border-t border-border pt-2.5">
           {predictions.map((prediction) => {
             const userName =
               typeof prediction.user === 'object' && prediction.user && 'name' in prediction.user
@@ -155,16 +155,16 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
             return (
               <div
                 key={prediction.id}
-                className="flex items-center justify-between rounded-lg border border-border bg-background/60 px-3 py-2"
+                className="flex items-center justify-between rounded-lg border border-border bg-background/60 px-2.5 py-1.5"
               >
                 <div>
-                  <p className="text-sm font-semibold text-card-foreground">{userName}</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs font-semibold text-card-foreground">{userName}</p>
+                  <p className="text-[11px] text-muted-foreground">
                     {prediction.sport?.name || 'Šport'} • {prediction.league?.name || 'Liga'}
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-bold text-primary">@{Number(prediction.odds || 0).toFixed(2)}</p>
+                  <p className="text-xs font-bold text-primary">@{Number(prediction.odds || 0).toFixed(2)}</p>
                   <p
                     className={cn(
                       'text-[11px] font-bold uppercase',

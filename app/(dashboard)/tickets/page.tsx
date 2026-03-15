@@ -15,7 +15,7 @@ async function getTickets() {
         league:leagues (*)
       )
     `)
-    .order('date', { ascending: false })
+    .order('created_at', { ascending: false })
   
   return tickets || []
 }
