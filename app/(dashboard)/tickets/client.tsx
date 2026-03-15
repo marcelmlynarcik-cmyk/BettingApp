@@ -75,20 +75,23 @@ export function TicketsPageClient({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-700/80">Pending možná výhra</p>
-          <p className="mt-1 text-2xl font-black text-amber-700">{pendingPotentialWins.toFixed(0)} Kč</p>
-        </div>
-        <div className="rounded-xl border border-slate-800 bg-card p-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Dnešný profit</p>
-          <p className={`mt-1 text-2xl font-black ${todayProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-            {todayProfit >= 0 ? '+' : ''}{todayProfit.toFixed(0)} Kč
-          </p>
-        </div>
-        <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-sky-700/80">Otvorené tikety</p>
-          <p className="mt-1 text-2xl font-black text-sky-700">{openTickets}</p>
+      <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Rýchly stav</p>
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-amber-700/80">Pending možná výhra</p>
+            <p className="mt-1 text-base font-black text-amber-700">{pendingPotentialWins.toFixed(0)} Kč</p>
+          </div>
+          <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-2">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Dnešný profit</p>
+            <p className={`mt-1 text-base font-black ${todayProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+              {todayProfit >= 0 ? '+' : ''}{todayProfit.toFixed(0)} Kč
+            </p>
+          </div>
+          <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-2">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-sky-700/80">Otvorené tikety</p>
+            <p className="mt-1 text-base font-black text-sky-700">{openTickets}</p>
+          </div>
         </div>
       </div>
 
