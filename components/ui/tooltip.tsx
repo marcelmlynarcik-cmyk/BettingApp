@@ -3,7 +3,16 @@
 import * as React from 'react'
 import * as TooltipPrimitive from '@radix-ui/react-tooltip'
 
+import { useIsMobile } from '@/components/ui/use-mobile'
 import { cn } from '@/lib/utils'
+
+type TooltipContextValue = {
+  isMobile: boolean
+  open: boolean
+  setOpen: React.Dispatch<React.SetStateAction<boolean>>
+}
+
+const TooltipContext = React.createContext<TooltipContextValue | null>(null)
 
 function TooltipProvider({
   delayDuration = 0,
@@ -19,11 +28,23 @@ function TooltipProvider({
 }
 
 function Tooltip({
+  open: openProp,
+  onOpenChange,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Root>) {
+  const isMobile = useIsMobile()
+  const [open, setOpen] = React.useState(false)
+
   return (
     <TooltipProvider>
-      <TooltipPrimitive.Root data-slot="tooltip" {...props} />
+      <TooltipContext.Provider value={{ isMobile, open, setOpen }}>
+        <TooltipPrimitive.Root
+          data-slot="tooltip"
+          {...props}
+          open={isMobile ? open : openProp}
+          onOpenChange={isMobile ? setOpen : onOpenChange}
+        />
+      </TooltipContext.Provider>
     </TooltipProvider>
   )
 }
@@ -31,7 +52,23 @@ function Tooltip({
 function TooltipTrigger({
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
-  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />
+  const context = React.useContext(TooltipContext)
+
+  return (
+    <TooltipPrimitive.Trigger
+      data-slot="tooltip-trigger"
+      {...props}
+      onClick={(event) => {
+        props.onClick?.(event)
+
+        if (event.defaultPrevented || !context?.isMobile) {
+          return
+        }
+
+        context.setOpen((currentOpen) => !currentOpen)
+      }}
+    />
+  )
 }
 
 function TooltipContent({
