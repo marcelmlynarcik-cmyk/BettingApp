@@ -32,7 +32,12 @@ async function getFinanceData() {
   const supabase = await createClient()
 
   const [{ data: transactions }] = await Promise.all([
-    supabase.from('finance_transactions').select('*').order('date', { ascending: false }).range(0, 9999),
+    supabase
+      .from('finance_transactions')
+      .select('*')
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .range(0, 9999),
   ])
 
   const safeTransactions = transactions || []
