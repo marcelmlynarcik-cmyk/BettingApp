@@ -1,12 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
-import { StatsCard } from '@/components/stats-card'
 import { TicketCard } from '@/components/TicketCard'
 import { LeaderboardCard } from '@/components/LeaderboardCard'
 import {
-  Ticket,
-  Target,
   ArrowRight,
-  Wallet,
 } from 'lucide-react'
 import Link from 'next/link'
 import type { OverviewStats, UserStats, Ticket as TicketType } from '@/lib/types'
@@ -136,42 +132,55 @@ export default async function OverviewPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <StatsCard
-          title="Aktuálny stav"
-          value={`${Math.floor(currentBankroll).toLocaleString()} Kč`}
-          icon={Wallet}
-          variant="default"
-        />
-        <StatsCard
-          title="Tikety spolu"
-          value={stats.total_tickets}
-          subtitle={`${stats.pending_tickets} čakajúcich`}
-          icon={Ticket}
-        />
-        <StatsCard
-          title="Úspešnosť"
-          value={`${stats.win_rate.toFixed(1)}%`}
-          subtitle={`${stats.winning_tickets}V - ${stats.losing_tickets}P`}
-          icon={Target}
-          variant="success"
-        />
-      </div>
+      <div className="grid gap-3 lg:grid-cols-2">
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">KPI prehľad</p>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Aktuálny stav</p>
+              <p className="mt-1 text-base font-black text-card-foreground">{Math.floor(currentBankroll).toLocaleString()} Kč</p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Tikety spolu</p>
+              <p className="mt-1 text-base font-black text-card-foreground">{stats.total_tickets}</p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Úspešnosť</p>
+              <p className="mt-1 text-base font-black text-emerald-700">{stats.win_rate.toFixed(1)}%</p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Vyhraté</p>
+              <p className="mt-1 text-base font-black text-emerald-700">{stats.winning_tickets}</p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Prehraté</p>
+              <p className="mt-1 text-base font-black text-rose-700">{stats.losing_tickets}</p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Čakajúce</p>
+              <p className="mt-1 text-base font-black text-amber-700">{stats.pending_tickets}</p>
+            </div>
+          </div>
+        </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-700/80">Pending možná výhra</p>
-          <p className="mt-1 text-2xl font-black text-amber-700">{pendingPotentialWins.toFixed(0)} Kč</p>
-        </div>
-        <div className="rounded-xl border border-slate-800 bg-card p-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Dnešný profit</p>
-          <p className={`mt-1 text-2xl font-black ${todayProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-            {todayProfit >= 0 ? '+' : ''}{todayProfit.toFixed(0)} Kč
-          </p>
-        </div>
-        <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 p-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-sky-700/80">Otvorené tikety</p>
-          <p className="mt-1 text-2xl font-black text-sky-700">{openTickets}</p>
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Rýchly stav</p>
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-amber-700/80">Pending možná výhra</p>
+              <p className="mt-1 text-base font-black text-amber-700">{pendingPotentialWins.toFixed(0)} Kč</p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Dnešný profit</p>
+              <p className={`mt-1 text-base font-black ${todayProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                {todayProfit >= 0 ? '+' : ''}{todayProfit.toFixed(0)} Kč
+              </p>
+            </div>
+            <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-sky-700/80">Otvorené tikety</p>
+              <p className="mt-1 text-base font-black text-sky-700">{openTickets}</p>
+            </div>
+          </div>
         </div>
       </div>
 
