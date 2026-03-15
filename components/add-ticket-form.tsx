@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { User, Sport, League } from '@/lib/types'
@@ -37,6 +37,11 @@ export function AddTicketForm({ users, sports, leagues, onClose }: AddTicketForm
     }))
   )
 
+  const sortedSports = useMemo(
+    () => [...sports].sort((a, b) => a.name.localeCompare(b.name, 'sk', { sensitivity: 'base' })),
+    [sports],
+  )
+
   const updatePrediction = (
     index: number,
     field: keyof PredictionInput,
@@ -50,7 +55,9 @@ export function AddTicketForm({ users, sports, leagues, onClose }: AddTicketForm
   }
 
   const getLeaguesForSport = (sportId: string) => {
-    return leagues.filter((l) => l.sport_id === sportId)
+    return leagues
+      .filter((l) => l.sport_id === sportId)
+      .sort((a, b) => a.name.localeCompare(b.name, 'sk', { sensitivity: 'base' }))
   }
 
   const calculateCombinedOdds = () => {
@@ -267,7 +274,7 @@ export function AddTicketForm({ users, sports, leagues, onClose }: AddTicketForm
                           className="w-full rounded-lg border border-border bg-white px-2 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary transition-all"
                         >
                           <option value="">Vybrať</option>
-                          {sports.map((sport) => (
+                          {sortedSports.map((sport) => (
                             <option key={sport.id} value={sport.id}>
                               {sport.name}
                             </option>
@@ -310,9 +317,9 @@ export function AddTicketForm({ users, sports, leagues, onClose }: AddTicketForm
                   {combinedOdds.toFixed(2)}
                 </span>
               </div>
-              <div className="mt-2 flex justify-between items-center">
+              <div className="mt-2 flex items-center justify-between gap-2">
                 <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Možná výhra</span>
-                <span className="text-xl font-black text-emerald-500">
+                <span className="max-w-[62%] break-all text-right text-lg font-black leading-tight text-emerald-500 md:text-xl">
                   {isNaN(possibleWin) ? '0' : Math.floor(possibleWin).toLocaleString()} Kč
                 </span>
               </div>

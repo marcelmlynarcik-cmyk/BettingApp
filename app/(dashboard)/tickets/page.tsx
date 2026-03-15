@@ -10,7 +10,9 @@ async function getTickets() {
       *,
       predictions (
         *,
-        user:users (*)
+        user:users (*),
+        sport:sports (*),
+        league:leagues (*)
       )
     `)
     .order('date', { ascending: false })
@@ -26,13 +28,13 @@ async function getUsers() {
 
 async function getSports() {
   const supabase = await createClient()
-  const { data: sports } = await supabase.from('sports').select('*')
+  const { data: sports } = await supabase.from('sports').select('*').order('name', { ascending: true })
   return sports || []
 }
 
 async function getLeagues() {
   const supabase = await createClient()
-  const { data: leagues } = await supabase.from('leagues').select('*')
+  const { data: leagues } = await supabase.from('leagues').select('*').order('name', { ascending: true })
   return leagues || []
 }
 

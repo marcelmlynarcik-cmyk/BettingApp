@@ -4,10 +4,11 @@ import { useState } from 'react'
 import { TicketCard } from '@/components/TicketCard'
 import { AddTicketForm } from '@/components/add-ticket-form'
 import type { Ticket, Prediction, User, Sport, League } from '@/lib/types'
+import { SportsLeaguesManager } from '@/components/sports-leagues-manager'
 import { Plus } from 'lucide-react'
 
 interface TicketsPageClientProps {
-  tickets: (Ticket & { predictions: (Prediction & { user: User })[] })[]
+  tickets: (Ticket & { predictions: (Prediction & { user: User; sport?: Sport; league?: League })[] })[]
   users: User[]
   sports: Sport[]
   leagues: League[]
@@ -62,13 +63,16 @@ export function TicketsPageClient({
             Prehľad a správa tvojich stávok
           </p>
         </div>
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-black uppercase tracking-widest text-emerald-950 shadow-lg shadow-emerald-500/20 active:scale-95 transition-all hover:bg-emerald-400"
-        >
-          <Plus className="h-5 w-5" />
-          <span className="hidden sm:inline">Pridať tiket</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <SportsLeaguesManager sports={sports} leagues={leagues} />
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="flex items-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-black uppercase tracking-widest text-emerald-950 shadow-lg shadow-emerald-500/20 active:scale-95 transition-all hover:bg-emerald-400"
+          >
+            <Plus className="h-5 w-5" />
+            <span className="hidden sm:inline">Pridať tiket</span>
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

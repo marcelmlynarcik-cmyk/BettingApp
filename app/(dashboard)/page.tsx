@@ -34,9 +34,6 @@ async function getDashboardData() {
   // Formula: SUM(Payouts) + SUM(Deposits/Withdrawals) - SUM(Stakes)
   const currentBankroll = totalPayouts + totalCashflow - totalStakes
 
-  // Filter for valid tickets (exactly 3 predictions) for other dashboard stats
-  const validTickets = allTickets?.filter(t => t.predictions?.length === 3) || []
-  
   // Get current month date range
   const now = new Date()
   const firstDay = toDateKey(new Date(now.getFullYear(), now.getMonth(), 1))
@@ -53,21 +50,23 @@ async function getDashboardData() {
     .gte('tip_date', firstDay)
     .lte('tip_date', lastDay)
 
-  // Get recent valid tickets
-  const recentTickets = [...validTickets]
+  const allTicketsSafe = allTickets || []
+
+  // Get recent tickets
+  const recentTickets = [...allTicketsSafe]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 5)
 
-  // Calculate Overview Stats using only valid tickets
-  const stats: OverviewStats = validTickets.length > 0 ? {
-    total_tickets: validTickets.length,
-    total_stake: validTickets.reduce((sum, t) => sum + Number(t.stake), 0),
-    total_payout: validTickets.reduce((sum, t) => sum + Number(t.payout), 0),
-    total_profit: validTickets.reduce((sum, t) => sum + (Number(t.payout) - Number(t.stake)), 0),
-    win_rate: (validTickets.filter(t => t.status === 'win').length / validTickets.filter(t => t.status !== 'pending').length || 0) * 100,
-    pending_tickets: validTickets.filter(t => t.status === 'pending').length,
-    winning_tickets: validTickets.filter(t => t.status === 'win').length,
-    losing_tickets: validTickets.filter(t => t.status === 'loss').length,
+  // Calculate Overview Stats using all tickets (same logic as statistics page)
+  const stats: OverviewStats = allTicketsSafe.length > 0 ? {
+    total_tickets: allTicketsSafe.length,
+    total_stake: allTicketsSafe.reduce((sum, t) => sum + Number(t.stake), 0),
+    total_payout: allTicketsSafe.reduce((sum, t) => sum + Number(t.payout), 0),
+    total_profit: allTicketsSafe.reduce((sum, t) => sum + (Number(t.payout) - Number(t.stake)), 0),
+    win_rate: (allTicketsSafe.filter(t => t.status === 'win').length / allTicketsSafe.filter(t => t.status !== 'pending').length || 0) * 100,
+    pending_tickets: allTicketsSafe.filter(t => t.status === 'pending').length,
+    winning_tickets: allTicketsSafe.filter(t => t.status === 'win').length,
+    losing_tickets: allTicketsSafe.filter(t => t.status === 'loss').length,
   } : {
     total_tickets: 0,
     total_stake: 0,
@@ -79,15 +78,15 @@ async function getDashboardData() {
     losing_tickets: 0,
   }
 
-  const pendingPotentialWins = (allTickets || [])
+  const pendingPotentialWins = allTicketsSafe
     .filter((t) => t.status === 'pending')
     .reduce((sum, t) => sum + Number(t.possible_win || 0), 0)
 
-  const todayProfit = (allTickets || [])
+  const todayProfit = allTicketsSafe
     .filter((t) => t.date === todayKey && (t.status === 'win' || t.status === 'loss'))
     .reduce((sum, t) => sum + (Number(t.payout || 0) - Number(t.stake || 0)), 0)
 
-  const openTickets = (allTickets || []).filter((t) => t.status === 'pending').length
+  const openTickets = allTicketsSafe.filter((t) => t.status === 'pending').length
 
   // Calculate Monthly User Stats for Leaderboard
   const monthlyLeaderboard = users?.map((user) => {
