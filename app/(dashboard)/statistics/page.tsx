@@ -27,10 +27,14 @@ type TicketRecord = {
 type PredictionRecord = {
   id: string
   user_id: string
+  ticket_id?: string | null
   result: string | null
   odds: number | string | null
   profit?: number | string | null
   tip_date: string | null
+  created_at?: string | null
+  sport?: { name?: string | null } | { name?: string | null }[] | null
+  league?: { name?: string | null } | { name?: string | null }[] | null
 }
 
 type UserRecord = {
@@ -121,7 +125,10 @@ type StatisticsData = {
     bestDayLabel: string
     worstDayLabel: string
   }
+  weekLabels: string[]
+  contextMinTips: number
   tipperInsights: Array<{
+    userId: string
     name: string
     wins: number
     losses: number
@@ -130,6 +137,14 @@ type StatisticsData = {
     avgOdds: number
     highestWonOdds: number
     totalCorrect: number
+    trend8w: number[]
+    bestSport: { name: string; yield: number; tips: number } | null
+    bestLeague: { name: string; yield: number; tips: number } | null
+  }>
+  bestContextByTipper: Array<{
+    userName: string
+    bestSport: { name: string; yield: number; tips: number } | null
+    bestLeague: { name: string; yield: number; tips: number } | null
   }>
   topTicketWins: Array<{
     id: string
@@ -261,6 +276,60 @@ function formatPeriodLabel(period: PeriodKey) {
   return 'Celá história'
 }
 
+function getPredictionDate(prediction: PredictionRecord, ticketById: Map<string, TicketRecord>) {
+  if (prediction.tip_date) return prediction.tip_date
+  if (prediction.ticket_id && ticketById.has(prediction.ticket_id)) return ticketById.get(prediction.ticket_id)!.date
+  return prediction.created_at || null
+}
+
+function toWeekStartMonday(dateValue: string) {
+  const date = new Date(dateValue)
+  const normalized = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const day = normalized.getDay()
+  const offset = day === 0 ? -6 : 1 - day
+  normalized.setDate(normalized.getDate() + offset)
+  return normalized
+}
+
+function weekKey(dateValue: string) {
+  const monday = toWeekStartMonday(dateValue)
+  return toDateKey(monday)
+}
+
+function last8WeekKeys() {
+  const today = new Date()
+  const monday = toWeekStartMonday(toDateKey(today))
+  const keys: string[] = []
+  for (let i = 7; i >= 0; i -= 1) {
+    const d = new Date(monday)
+    d.setDate(d.getDate() - i * 7)
+    keys.push(toDateKey(d))
+  }
+  return keys
+}
+
+function weekLabel(weekStartKey: string) {
+  const d = new Date(weekStartKey)
+  return d.toLocaleDateString('sk-SK', { day: '2-digit', month: '2-digit' })
+}
+
+function getStakeShare(prediction: PredictionRecord, ticketById: Map<string, TicketRecord>, legCountByTicket: Record<string, number>) {
+  if (!prediction.ticket_id) return 0
+  const ticket = ticketById.get(prediction.ticket_id)
+  if (!ticket) return 0
+  const legs = legCountByTicket[prediction.ticket_id] || 0
+  if (legs <= 0) return 0
+  return toNumber(ticket.stake) / legs
+}
+
+function getVirtualPredictionProfit(prediction: PredictionRecord, stakeShare: number) {
+  if (stakeShare <= 0) return 0
+  const result = normalizeResult(prediction.result)
+  if (result === 'OK') return toNumber(prediction.odds) * stakeShare - stakeShare
+  if (result === 'NOK') return -stakeShare
+  return 0
+}
+
 function formatDelta(value: number | null, suffix = '') {
   if (value === null || Number.isNaN(value)) return 'Bez porovnania'
   const sign = value > 0 ? '+' : ''
@@ -268,7 +337,7 @@ function formatDelta(value: number | null, suffix = '') {
 }
 
 async function fetchAll<T>(
-  fetchPage: (from: number, to: number) => Promise<{ data: T[] | null; error: { message: string } | null }>,
+  fetchPage: (from: number, to: number) => Promise<{ data: T[] | null; error: { message?: string } | null }>,
 ): Promise<T[]> {
   const pageSize = 1000
   let from = 0
@@ -277,7 +346,7 @@ async function fetchAll<T>(
   while (true) {
     const to = from + pageSize - 1
     const { data, error } = await fetchPage(from, to)
-    if (error) throw new Error(error.message)
+    if (error) throw new Error(error.message || 'Nepodarilo sa načítať dáta')
 
     const rows = data || []
     all.push(...rows)
@@ -287,6 +356,12 @@ async function fetchAll<T>(
   }
 
   return all
+}
+
+function relationName(value: PredictionRecord['sport'] | PredictionRecord['league']) {
+  if (!value) return null
+  if (Array.isArray(value)) return value[0]?.name || null
+  return value.name || null
 }
 
 function computeMaxDrawdown(tickets: TicketRecord[]) {
@@ -617,7 +692,11 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
         await supabase.from('tickets').select('id, status, date, stake, payout, combined_odds, possible_win, description').order('date', { ascending: true }).range(from, to),
       ),
       fetchAll<PredictionRecord>(async (from, to) =>
-        await supabase.from('predictions').select('id, user_id, result, odds, profit, tip_date').order('tip_date', { ascending: true, nullsFirst: true }).range(from, to),
+        await supabase
+          .from('predictions')
+          .select('id, user_id, ticket_id, result, odds, profit, tip_date, created_at, sport:sports(name), league:leagues(name)')
+          .order('tip_date', { ascending: true, nullsFirst: true })
+          .range(from, to),
       ),
       fetchAll<UserRecord>(async (from, to) =>
         await supabase.from('users').select('id, name').order('name', { ascending: true }).range(from, to),
@@ -629,13 +708,22 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
 
     const { start, end } = getPeriodWindow(period)
     const { start: prevStart, end: prevEnd } = getPreviousWindow(period)
+    const allTicketById = new Map<string, TicketRecord>(tickets.map((ticket) => [ticket.id, ticket]))
 
     const filteredTickets = tickets.filter((ticket) => inRange(ticket.date, start, end))
-    const filteredPredictions = predictions.filter((prediction) => inRange(prediction.tip_date, start, end))
+    const filteredPredictions = predictions.filter((prediction) => inRange(getPredictionDate(prediction, allTicketById), start, end))
     const filteredFinanceTransactions = financeTransactions.filter((tx) => inRange(tx.date, start, end))
+    const ticketById = new Map<string, TicketRecord>(filteredTickets.map((ticket) => [ticket.id, ticket]))
+    const legCountByTicket = filteredPredictions.reduce((acc, prediction) => {
+      if (!prediction.ticket_id) return acc
+      acc[prediction.ticket_id] = (acc[prediction.ticket_id] || 0) + 1
+      return acc
+    }, {} as Record<string, number>)
+    const weekKeys = last8WeekKeys()
+    const contextMinTips = 5
 
     const previousTickets = tickets.filter((ticket) => inRange(ticket.date, prevStart, prevEnd))
-    const previousPredictions = predictions.filter((prediction) => inRange(prediction.tip_date, prevStart, prevEnd))
+    const previousPredictions = predictions.filter((prediction) => inRange(getPredictionDate(prediction, allTicketById), prevStart, prevEnd))
 
     const highestWonOddsByUser = new Map<string, number>()
     for (const prediction of filteredPredictions) {
@@ -662,8 +750,60 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
         const losses = userPreds.filter((prediction) => normalizeResult(prediction.result) === 'NOK').length
         const completed = wins + losses
         const avgOdds = userPreds.length > 0 ? userPreds.reduce((sum, prediction) => sum + toNumber(prediction.odds), 0) / userPreds.length : 0
+        const weekProfitMap = new Map<string, number>()
+        const sportStats = new Map<string, { tips: number; stake: number; profit: number }>()
+        const leagueStats = new Map<string, { tips: number; stake: number; profit: number }>()
+
+        for (const prediction of userPreds) {
+          const result = normalizeResult(prediction.result)
+          if (result !== 'OK' && result !== 'NOK') continue
+
+          const predictionDate = getPredictionDate(prediction, ticketById)
+          if (predictionDate) {
+            const wk = weekKey(predictionDate)
+            const share = getStakeShare(prediction, ticketById, legCountByTicket)
+            const virtualProfit = getVirtualPredictionProfit(prediction, share)
+            weekProfitMap.set(wk, (weekProfitMap.get(wk) || 0) + virtualProfit)
+
+            const sportName = relationName(prediction.sport) || 'Nezaradené'
+            const leagueName = relationName(prediction.league) || 'Nezaradené'
+
+            const sportEntry = sportStats.get(sportName) || { tips: 0, stake: 0, profit: 0 }
+            sportEntry.tips += 1
+            sportEntry.stake += share
+            sportEntry.profit += virtualProfit
+            sportStats.set(sportName, sportEntry)
+
+            const leagueEntry = leagueStats.get(leagueName) || { tips: 0, stake: 0, profit: 0 }
+            leagueEntry.tips += 1
+            leagueEntry.stake += share
+            leagueEntry.profit += virtualProfit
+            leagueStats.set(leagueName, leagueEntry)
+          }
+        }
+
+        const trend8w = weekKeys.map((wk) => weekProfitMap.get(wk) || 0)
+
+        const bestSport = [...sportStats.entries()]
+          .filter(([, value]) => value.tips >= contextMinTips && value.stake > 0)
+          .map(([name, value]) => ({
+            name,
+            tips: value.tips,
+            yield: (value.profit / value.stake) * 100,
+          }))
+          .sort((a, b) => b.yield - a.yield)[0] || null
+
+        const bestLeague = [...leagueStats.entries()]
+          .filter(([, value]) => value.tips >= contextMinTips && value.stake > 0)
+          .map(([name, value]) => ({
+            name,
+            tips: value.tips,
+            yield: (value.profit / value.stake) * 100,
+          }))
+          .sort((a, b) => b.yield - a.yield)[0] || null
 
         return {
+          userId: user.id,
           name: user.name,
           wins,
           losses,
@@ -672,10 +812,19 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
           avgOdds,
           highestWonOdds: highestWonOddsByUser.get(user.id) ?? 0,
           totalCorrect: wins,
+          trend8w,
+          bestSport,
+          bestLeague,
         }
       })
       .filter((user) => user.total >= minTips)
       .sort((a, b) => b.winRate - a.winRate)
+
+    const bestContextByTipper = tipperInsights.map((user) => ({
+      userName: user.name,
+      bestSport: user.bestSport,
+      bestLeague: user.bestLeague,
+    }))
 
     const topTicketWins = filteredTickets
       .filter((ticket) => ticket.status === 'win')
@@ -699,7 +848,10 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
       overview,
       deltas,
       quickStats,
+      weekLabels: weekKeys.map(weekLabel),
+      contextMinTips,
       tipperInsights,
+      bestContextByTipper,
       topTicketWins,
       monthlyBettingStats: buildMonthlyBettingStats(filteredTickets),
       monthlyCashflowStats: buildMonthlyCashflowStats(filteredFinanceTransactions, filteredTickets),
@@ -739,7 +891,10 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
         bestDayLabel: '-',
         worstDayLabel: '-',
       },
+      weekLabels: [],
+      contextMinTips: 5,
       tipperInsights: [],
+      bestContextByTipper: [],
       topTicketWins: [],
       monthlyBettingStats: [],
       monthlyCashflowStats: [],
@@ -956,6 +1111,9 @@ export default async function StatisticsPage({
 
       <StatisticsCharts
         tipperInsights={stats.tipperInsights}
+        weekLabels={stats.weekLabels}
+        contextMinTips={stats.contextMinTips}
+        bestContextByTipper={stats.bestContextByTipper}
         topTicketWins={stats.topTicketWins}
         monthlyBettingStats={stats.monthlyBettingStats}
         monthlyCashflowStats={stats.monthlyCashflowStats}

@@ -21,6 +21,7 @@ import {
 } from 'recharts'
 
 type TipperInsight = {
+  userId: string
   name: string
   wins: number
   losses: number
@@ -29,6 +30,9 @@ type TipperInsight = {
   avgOdds: number
   highestWonOdds: number
   totalCorrect: number
+  trend8w: number[]
+  bestSport: { name: string; yield: number; tips: number } | null
+  bestLeague: { name: string; yield: number; tips: number } | null
 }
 
 type TopTicketWin = {
@@ -86,6 +90,13 @@ type StreakStats = {
 
 interface StatisticsChartsProps {
   tipperInsights: TipperInsight[]
+  weekLabels: string[]
+  contextMinTips: number
+  bestContextByTipper: Array<{
+    userName: string
+    bestSport: { name: string; yield: number; tips: number } | null
+    bestLeague: { name: string; yield: number; tips: number } | null
+  }>
   topTicketWins: TopTicketWin[]
   monthlyBettingStats: MonthlyBettingStat[]
   monthlyCashflowStats: MonthlyCashflowStat[]
@@ -107,6 +118,7 @@ type RankingItem = {
   name: string
   value: number
   valueLabel: string
+  sparkline?: number[]
 }
 
 function formatCurrency(value: number) {
@@ -152,6 +164,34 @@ function EmptySection({ text }: { text: string }) {
   )
 }
 
+function Sparkline({ values }: { values: number[] }) {
+  if (values.length === 0) {
+    return <div className="h-6 w-24 rounded bg-muted/40" />
+  }
+
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const range = max - min || 1
+  const width = 96
+  const height = 24
+  const points = values
+    .map((value, index) => {
+      const x = (index / Math.max(values.length - 1, 1)) * width
+      const y = height - ((value - min) / range) * height
+      return `${x},${y}`
+    })
+    .join(' ')
+
+  const trend = values[values.length - 1] - values[0]
+  const stroke = trend >= 0 ? 'hsl(145, 63%, 49%)' : 'hsl(10, 72%, 55%)'
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="h-6 w-24">
+      <polyline points={points} fill="none" stroke={stroke} strokeWidth="2" />
+    </svg>
+  )
+}
+
 function RankingCard({
   title,
   subtitle,
@@ -184,6 +224,11 @@ function RankingCard({
               <p className="text-xs font-semibold tabular-nums text-muted-foreground">#{index + 1}</p>
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-foreground">{item.name}</p>
+                {item.sparkline && (
+                  <div className="mt-1">
+                    <Sparkline values={item.sparkline} />
+                  </div>
+                )}
                 <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted/70">
                   <div
                     className={cn('h-full rounded-full transition-[width] duration-500 ease-out', barClassName)}
@@ -246,6 +291,9 @@ function CashflowTooltip({
 
 export function StatisticsCharts({
   tipperInsights,
+  weekLabels,
+  contextMinTips,
+  bestContextByTipper,
   topTicketWins,
   monthlyBettingStats,
   monthlyCashflowStats,
@@ -275,16 +323,21 @@ export function StatisticsCharts({
         <div className="mt-3 grid gap-4 lg:grid-cols-2">
           <RankingCard
             title="Úspešnosť podľa tipéra"
-            subtitle="Zoradené od najlepšieho výsledku"
+            subtitle={
+              weekLabels.length > 1
+                ? `Zoradené od najlepšieho výsledku • trend ${weekLabels[0]} až ${weekLabels[weekLabels.length - 1]}`
+                : 'Zoradené od najlepšieho výsledku'
+            }
             barClassName="bg-gradient-to-r from-emerald-500 to-teal-500"
             emptyText={`Žiadny tipér nemá aspoň ${minTips} tipov v tomto období.`}
-            items={sortedByWinRate.map((user) => ({
-              id: `${user.name}-win-rate`,
-              name: user.name,
-              value: user.winRate,
-              valueLabel: `${user.winRate.toFixed(1)}%`,
-            }))}
-          />
+          items={sortedByWinRate.map((user) => ({
+            id: `${user.userId}-win-rate`,
+            name: user.name,
+            value: user.winRate,
+            valueLabel: `${user.winRate.toFixed(1)}%`,
+            sparkline: user.trend8w,
+          }))}
+        />
 
           <RankingCard
             title="Priemerný kurz podľa tipéra"
@@ -560,6 +613,37 @@ export function StatisticsCharts({
               <p className="mt-1 text-sm font-black text-rose-700">{quickStats.worstDayLabel}</p>
             </div>
           </div>
+        </DashboardCard>
+
+        <DashboardCard
+          title="Najlepší šport/liga podľa tipéra"
+          subtitle={`Yield podľa kategórií, minimum ${contextMinTips} tipov`}
+        >
+          {bestContextByTipper.length === 0 ? (
+            <EmptySection text="Zatiaľ nie sú dostupné dáta pre športové/ligové porovnanie tipérov." />
+          ) : (
+            <div className="space-y-2">
+              {bestContextByTipper.map((row) => (
+                <div key={row.userName} className="rounded-lg border border-border bg-muted/20 p-3">
+                  <p className="text-sm font-semibold text-card-foreground">{row.userName}</p>
+                  <div className="mt-1 grid gap-2 text-xs sm:grid-cols-2">
+                    <div className="rounded-md border border-border/70 bg-background/70 px-2 py-1.5">
+                      <p className="text-muted-foreground">Top šport</p>
+                      <p className="font-semibold text-card-foreground">
+                        {row.bestSport ? `${row.bestSport.name} (${row.bestSport.yield.toFixed(1)}%, ${row.bestSport.tips} tipov)` : 'Nedostatok dát'}
+                      </p>
+                    </div>
+                    <div className="rounded-md border border-border/70 bg-background/70 px-2 py-1.5">
+                      <p className="text-muted-foreground">Top liga</p>
+                      <p className="font-semibold text-card-foreground">
+                        {row.bestLeague ? `${row.bestLeague.name} (${row.bestLeague.yield.toFixed(1)}%, ${row.bestLeague.tips} tipov)` : 'Nedostatok dát'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </DashboardCard>
       </div>
 
