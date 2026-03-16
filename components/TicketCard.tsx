@@ -77,6 +77,9 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
     }
   }
 
+  const externalTicketHref =
+    ticket.ticket_url && /^https?:\/\//i.test(ticket.ticket_url) ? ticket.ticket_url : ticket.ticket_url ? `https://${ticket.ticket_url}` : null
+
   return (
     <div
       className="group rounded-xl border border-border bg-card p-3 shadow-sm transition-all hover:bg-secondary/40"
@@ -133,22 +136,36 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
         </div>
       </div>
 
-      <div className="mt-2.5 flex items-center justify-between">
+      <div className="mt-2.5 grid grid-cols-3 items-center gap-2">
         {expandable && predictions.length > 0 ? (
           <button
             onClick={() => setIsExpanded((prev) => !prev)}
-            className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground hover:bg-secondary"
+            className="inline-flex items-center justify-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground hover:bg-secondary"
           >
             {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-            {isExpanded ? 'Skryť tipy' : `Zobraziť tipy (${predictions.length})`}
+            {isExpanded ? 'Skryť tipy' : `Tipy (${predictions.length})`}
           </button>
         ) : (
-          <span />
+          <span className="h-7" />
+        )}
+
+        {externalTicketHref ? (
+          <a
+            href={externalTicketHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-1 rounded-lg border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-sky-700 hover:bg-sky-500/20"
+          >
+            URL
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        ) : (
+          <span className="h-7" />
         )}
 
         <button
           onClick={() => router.push(`/tickets/${ticket.id}`)}
-          className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-700 hover:bg-emerald-500/20"
+          className="inline-flex items-center justify-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-700 hover:bg-emerald-500/20"
         >
           Detail
           <ExternalLink className="h-3.5 w-3.5" />
