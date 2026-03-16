@@ -486,8 +486,8 @@ export function StatisticsCharts({
                     <ReferenceLine y={0} stroke="hsl(var(--border))" />
                     <Tooltip content={<CashflowTooltip />} />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Bar dataKey="deposits" name="Vklady" fill="hsl(145, 63%, 49%)" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="withdrawals" name="Výbery" fill="hsl(10, 72%, 55%)" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="deposits" name="Vklady" fill="hsl(10, 72%, 55%)" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="withdrawals" name="Výbery" fill="hsl(145, 63%, 49%)" radius={[4, 4, 0, 0]} />
                     <Line type="monotone" dataKey="netCashflow" name="Netto cashflow" stroke="hsl(215, 90%, 55%)" strokeWidth={2.5} dot={{ r: 2 }} />
                   </ComposedChart>
                 </ResponsiveContainer>

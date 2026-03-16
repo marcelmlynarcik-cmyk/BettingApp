@@ -57,13 +57,28 @@ export function FinanceClient({ transactions }: FinanceClientProps) {
   const getTypeIcon = (t: FinanceTransaction['type']) => {
     switch (t) {
       case 'deposit':
-        return <ArrowUpCircle className="h-5 w-5 text-primary" />
+        return <ArrowUpCircle className="h-5 w-5 text-orange-500" />
       case 'withdraw':
         return <ArrowDownCircle className="h-5 w-5 text-accent" />
       case 'bet':
-        return <ArrowDownCircle className="h-5 w-5 text-muted-foreground" />
+        return <ArrowDownCircle className="h-5 w-5 text-red-500" />
       case 'payout':
-        return <ArrowUpCircle className="h-5 w-5 text-primary" />
+        return <ArrowUpCircle className="h-5 w-5 text-green-500" />
+    }
+  }
+
+  const getTypeAmountColor = (t: FinanceTransaction['type']) => {
+    switch (t) {
+      case 'deposit':
+        return 'text-orange-500'
+      case 'payout':
+        return 'text-green-500'
+      case 'bet':
+        return 'text-red-500'
+      case 'withdraw':
+        return 'text-accent'
+      default:
+        return 'text-card-foreground'
     }
   }
 
@@ -122,9 +137,7 @@ export function FinanceClient({ transactions }: FinanceClientProps) {
                 <p
                   className={cn(
                     'font-semibold',
-                    Number(transaction.amount) >= 0
-                      ? 'text-primary'
-                      : 'text-destructive'
+                    getTypeAmountColor(transaction.type)
                   )}
                 >
                   {formatSignedCurrency(Number(transaction.amount || 0))}
