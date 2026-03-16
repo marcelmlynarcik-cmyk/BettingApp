@@ -57,7 +57,7 @@ export function FinanceClient({ transactions }: FinanceClientProps) {
   const getTypeIcon = (t: FinanceTransaction['type']) => {
     switch (t) {
       case 'deposit':
-        return <ArrowUpCircle className="h-5 w-5 text-orange-500" />
+        return <ArrowUpCircle className="h-5 w-5 text-blue-600" />
       case 'withdraw':
         return <ArrowDownCircle className="h-5 w-5 text-accent" />
       case 'bet':
@@ -70,7 +70,7 @@ export function FinanceClient({ transactions }: FinanceClientProps) {
   const getTypeAmountColor = (t: FinanceTransaction['type']) => {
     switch (t) {
       case 'deposit':
-        return 'text-orange-500'
+        return 'text-blue-600'
       case 'payout':
         return 'text-green-500'
       case 'bet':
