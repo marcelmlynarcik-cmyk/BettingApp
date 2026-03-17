@@ -6,6 +6,12 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import type { OverviewStats, UserStats, Ticket as TicketType } from '@/lib/types'
+import {
+  buildProbabilityIndex,
+  estimatePredictionProbability,
+  estimateTicketProbability,
+  type ClosedPredictionRecord,
+} from '@/lib/ticket-probability'
 
 async function getDashboardData() {
   const supabase = await createClient()
@@ -19,20 +25,26 @@ async function getDashboardData() {
     .from('tickets')
     .select('*, predictions(*)')
 
-  const { data: recentTicketsData } = await supabase
-    .from('tickets')
-    .select(`
-      *,
-      predictions (
+  const [{ data: recentTicketsData }, { data: closedPredictions }] = await Promise.all([
+    supabase
+      .from('tickets')
+      .select(`
         *,
-        user:users (*),
-        sport:sports (*),
-        league:leagues (*)
-      )
-    `)
-    .or(`status.eq.pending,date.eq.${todayKey}`)
-    .order('created_at', { ascending: false })
-    .limit(5)
+        predictions (
+          *,
+          user:users (*),
+          sport:sports (*),
+          league:leagues (*)
+        )
+      `)
+      .or(`status.eq.pending,date.eq.${todayKey}`)
+      .order('created_at', { ascending: false })
+      .limit(5),
+    supabase
+      .from('predictions')
+      .select('user_id, sport_id, league_id, odds, result')
+      .in('result', ['OK', 'NOK']),
+  ])
 
   // Get only deposit/withdraw transactions (following user formula)
   const { data: cashflow } = await supabase
@@ -120,6 +132,44 @@ async function getDashboardData() {
     }
   }) || []
 
+  const statsIndex = buildProbabilityIndex((closedPredictions || []) as ClosedPredictionRecord[])
+  const recentTickets = ((recentTicketsData as TicketType[]) || []).map((ticket) => {
+    const predictions = (ticket.predictions || []).map((prediction) => {
+      const estimate = estimatePredictionProbability(
+        {
+          user_id: prediction.user_id,
+          sport_id: prediction.sport_id,
+          league_id: prediction.league_id,
+          odds: Number(prediction.odds),
+        },
+        statsIndex,
+      )
+
+      return {
+        ...prediction,
+        estimated_win_probability: estimate?.probability ?? null,
+        probability_sample_size: estimate?.sampleSize ?? null,
+        probability_source: estimate?.sourceLabel ?? null,
+      }
+    })
+
+    const ticketProbability = estimateTicketProbability(
+      predictions.map((prediction) => ({
+        user_id: prediction.user_id,
+        sport_id: prediction.sport_id,
+        league_id: prediction.league_id,
+        odds: Number(prediction.odds),
+      })),
+      statsIndex,
+    )
+
+    return {
+      ...ticket,
+      predictions,
+      estimated_win_probability: ticketProbability,
+    }
+  })
+
   return {
     stats,
     currentBankroll,
@@ -128,7 +178,7 @@ async function getDashboardData() {
     todayProfit,
     openTickets,
     todayOrPendingTickets,
-    recentTickets: (recentTicketsData as TicketType[]) || []
+    recentTickets
   }
 }
 

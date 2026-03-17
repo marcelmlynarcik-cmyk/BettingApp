@@ -94,6 +94,11 @@ export function PredictionRow({
               {prediction.sport?.name}
             </span>
           </div>
+          {typeof prediction.estimated_win_probability === 'number' && (
+            <p className="mt-1 text-[10px] font-semibold text-cyan-700">
+              Šanca: {(prediction.estimated_win_probability * 100).toFixed(1)}%
+            </p>
+          )}
         </div>
       </div>
 

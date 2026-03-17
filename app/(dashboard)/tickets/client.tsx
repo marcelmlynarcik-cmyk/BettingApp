@@ -8,7 +8,7 @@ import { SportsLeaguesManager } from '@/components/sports-leagues-manager'
 import { Plus } from 'lucide-react'
 
 interface TicketsPageClientProps {
-  tickets: (Ticket & { predictions: (Prediction & { user: User; sport?: Sport; league?: League })[] })[]
+  tickets: (Ticket & { predictions: (Prediction & { user?: User; sport?: Sport; league?: League })[] })[]
   users: User[]
   sports: Sport[]
   leagues: League[]

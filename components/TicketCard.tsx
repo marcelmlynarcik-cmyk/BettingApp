@@ -136,6 +136,17 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
         </div>
       </div>
 
+      <div className="mt-2 rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-2.5 py-1.5">
+        <p className="text-[10px] font-black uppercase tracking-wide text-cyan-900/80">
+          Šanca tiketu
+        </p>
+        <p className="text-xs font-bold text-cyan-700">
+          {typeof ticket.estimated_win_probability === 'number'
+            ? `${(ticket.estimated_win_probability * 100).toFixed(1)}%`
+            : 'Nedostatok dát'}
+        </p>
+      </div>
+
       <div className="mt-2.5 grid grid-cols-3 items-center gap-2">
         {expandable && predictions.length > 0 ? (
           <button
@@ -190,6 +201,11 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
                   <p className="text-[11px] text-muted-foreground">
                     {prediction.sport?.name || 'Šport'} • {prediction.league?.name || 'Liga'}
                   </p>
+                  {typeof prediction.estimated_win_probability === 'number' && (
+                    <p className="text-[10px] font-semibold text-cyan-700">
+                      Šanca: {(prediction.estimated_win_probability * 100).toFixed(1)}%
+                    </p>
+                  )}
                 </div>
                 <div className="text-right">
                   <p className="text-xs font-bold text-primary">@{Number(prediction.odds || 0).toFixed(2)}</p>

@@ -29,6 +29,7 @@ export interface Ticket {
   status: 'win' | 'loss' | 'pending'
   description: string | null
   created_at: string
+  estimated_win_probability?: number | null
   predictions?: Prediction[]
 }
 
@@ -43,6 +44,9 @@ export interface Prediction {
   tip_date: string | null
   profit: number
   created_at: string
+  estimated_win_probability?: number | null
+  probability_sample_size?: number | null
+  probability_source?: string | null
   user?: User
   sport?: Sport
   league?: League

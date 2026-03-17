@@ -13,9 +13,14 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { PredictionResolver } from '@/components/PredictionResolver'
-import { PredictionRow } from '@/components/PredictionRow'
 import { TicketActions } from '@/components/TicketActions'
-import type { Ticket, Prediction, User, Sport, League } from '@/lib/types'
+import type { Ticket } from '@/lib/types'
+import {
+  buildProbabilityIndex,
+  estimatePredictionProbability,
+  estimateTicketProbability,
+  type ClosedPredictionRecord,
+} from '@/lib/ticket-probability'
 
 async function getTicketData(id: string) {
   const supabase = await createClient()
@@ -49,19 +54,52 @@ async function getTicketData(id: string) {
   }
 
   // Get users for the predictions
-  const { data: users } = await supabase.from('users').select('*')
-  const { data: sports } = await supabase.from('sports').select('*')
-  const { data: leagues } = await supabase.from('leagues').select('*')
+  const [{ data: users }, { data: sports }, { data: leagues }, { data: closedPredictions }] = await Promise.all([
+    supabase.from('users').select('*'),
+    supabase.from('sports').select('*'),
+    supabase.from('leagues').select('*'),
+    supabase.from('predictions').select('user_id, sport_id, league_id, odds, result').in('result', ['OK', 'NOK']),
+  ])
 
-  const enrichedPredictions = predictions?.map(p => ({
-    ...p,
-    user: users?.find(u => u.id === p.user_id),
-    sport: sports?.find(s => s.id === p.sport_id),
-    league: leagues?.find(l => l.id === p.league_id)
-  })) || []
+  const statsIndex = buildProbabilityIndex((closedPredictions || []) as ClosedPredictionRecord[])
+
+  const enrichedPredictions = predictions?.map((p) => {
+    const estimate = estimatePredictionProbability(
+      {
+        user_id: p.user_id,
+        sport_id: p.sport_id,
+        league_id: p.league_id,
+        odds: Number(p.odds),
+      },
+      statsIndex,
+    )
+
+    return {
+      ...p,
+      estimated_win_probability: estimate?.probability ?? null,
+      probability_sample_size: estimate?.sampleSize ?? null,
+      probability_source: estimate?.sourceLabel ?? null,
+      user: users?.find((u) => u.id === p.user_id),
+      sport: sports?.find((s) => s.id === p.sport_id),
+      league: leagues?.find((l) => l.id === p.league_id),
+    }
+  }) || []
+
+  const ticketWinProbability = estimateTicketProbability(
+    enrichedPredictions.map((p) => ({
+      user_id: p.user_id,
+      sport_id: p.sport_id,
+      league_id: p.league_id,
+      odds: Number(p.odds),
+    })),
+    statsIndex,
+  )
 
   return {
-    ticket: ticket as Ticket,
+    ticket: {
+      ...(ticket as Ticket),
+      estimated_win_probability: ticketWinProbability,
+    },
     predictions: enrichedPredictions
   }
 }
@@ -169,6 +207,17 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
                 </span>
                 <span className="text-emerald-600 font-black">
                   {ticket.possible_win?.toFixed(0)} Kč
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center py-2 border-b border-border/50">
+                <span className="text-muted-foreground text-sm font-medium flex items-center gap-2">
+                  <Info className="h-4 w-4" /> Šanca tiketu
+                </span>
+                <span className="text-cyan-700 font-black">
+                  {typeof ticket.estimated_win_probability === 'number'
+                    ? `${(ticket.estimated_win_probability * 100).toFixed(1)}%`
+                    : 'Nedostatok dát'}
                 </span>
               </div>
 

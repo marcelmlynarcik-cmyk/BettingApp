@@ -1,10 +1,16 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { User, Sport, League } from '@/lib/types'
 import { notifyError, notifySuccess } from '@/lib/notifications'
+import {
+  buildProbabilityIndex,
+  estimatePredictionProbability,
+  estimateTicketProbability,
+  type ClosedPredictionRecord,
+} from '@/lib/ticket-probability'
 import { X } from 'lucide-react'
 
 interface AddTicketFormProps {
@@ -21,6 +27,10 @@ interface PredictionInput {
   league_id: string
 }
 
+function toPercent(value: number) {
+  return `${(value * 100).toFixed(1)}%`
+}
+
 export function AddTicketForm({ users, sports, leagues, onClose }: AddTicketFormProps) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -28,6 +38,8 @@ export function AddTicketForm({ users, sports, leagues, onClose }: AddTicketForm
   const [stake, setStake] = useState('')
   const [description, setDescription] = useState('')
   const [ticketUrl, setTicketUrl] = useState('')
+  const [historicalPredictions, setHistoricalPredictions] = useState<ClosedPredictionRecord[]>([])
+  const [statsLoaded, setStatsLoaded] = useState(false)
   const [predictions, setPredictions] = useState<PredictionInput[]>(
     users.map((user) => ({
       user_id: user.id,
@@ -54,6 +66,44 @@ export function AddTicketForm({ users, sports, leagues, onClose }: AddTicketForm
     })
   }
 
+  useEffect(() => {
+    let isActive = true
+
+    const loadHistoricalPredictions = async () => {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from('predictions')
+        .select('user_id, sport_id, league_id, odds, result')
+        .in('result', ['OK', 'NOK'])
+
+      if (!isActive) return
+
+      if (error) {
+        console.error('Error fetching historical predictions:', error)
+        setStatsLoaded(true)
+        return
+      }
+
+      const safeRows = (data || [])
+        .map((row) => ({
+          user_id: String(row.user_id || ''),
+          sport_id: row.sport_id ? String(row.sport_id) : null,
+          league_id: row.league_id ? String(row.league_id) : null,
+          odds: Number(row.odds || 0),
+          result: row.result as 'OK' | 'NOK',
+        }))
+        .filter((row) => row.user_id && row.odds > 0)
+
+      setHistoricalPredictions(safeRows)
+      setStatsLoaded(true)
+    }
+
+    loadHistoricalPredictions()
+    return () => {
+      isActive = false
+    }
+  }, [])
+
   const getLeaguesForSport = (sportId: string) => {
     return leagues
       .filter((l) => l.sport_id === sportId)
@@ -67,6 +117,24 @@ export function AddTicketForm({ users, sports, leagues, onClose }: AddTicketForm
     if (validOdds.length < 3) return 0
     return validOdds.reduce((acc, odd) => acc * odd, 1)
   }
+
+  const statsMap = useMemo(() => buildProbabilityIndex(historicalPredictions), [historicalPredictions])
+
+  const predictionEstimates = useMemo(
+    () =>
+      predictions.map((prediction) =>
+        estimatePredictionProbability(
+          {
+            user_id: prediction.user_id,
+            sport_id: prediction.sport_id || null,
+            league_id: prediction.league_id || null,
+            odds: Number.parseFloat(prediction.odds),
+          },
+          statsMap,
+        ),
+      ),
+    [predictions, statsMap],
+  )
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -146,6 +214,28 @@ export function AddTicketForm({ users, sports, leagues, onClose }: AddTicketForm
 
   const combinedOdds = calculateCombinedOdds()
   const possibleWin = parseFloat(stake) * combinedOdds
+  const validPredictionOddsCount = predictions
+    .map((prediction) => Number.parseFloat(prediction.odds))
+    .filter((odds) => Number.isFinite(odds) && odds > 0)
+    .length
+
+  const ticketWinProbability = useMemo(() => {
+    if (validPredictionOddsCount < 3) return null
+    if (predictionEstimates.some((estimate, index) => !estimate && Number.parseFloat(predictions[index].odds) > 0)) {
+      return null
+    }
+
+    const ticketPredictions = predictions
+      .map((prediction) => ({
+        user_id: prediction.user_id,
+        sport_id: prediction.sport_id || null,
+        league_id: prediction.league_id || null,
+        odds: Number.parseFloat(prediction.odds),
+      }))
+      .filter((prediction) => Number.isFinite(prediction.odds) && prediction.odds > 0)
+
+    return estimateTicketProbability(ticketPredictions, statsMap)
+  }, [predictionEstimates, predictions, statsMap, validPredictionOddsCount])
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/80 backdrop-blur-sm md:items-center">
@@ -232,6 +322,7 @@ export function AddTicketForm({ users, sports, leagues, onClose }: AddTicketForm
             <div className="space-y-3">
               {predictions.map((pred, index) => {
                 const user = users.find((u) => u.id === pred.user_id)
+                const estimate = predictionEstimates[index]
                 return (
                   <div
                     key={index}
@@ -303,6 +394,24 @@ export function AddTicketForm({ users, sports, leagues, onClose }: AddTicketForm
                         </select>
                       </div>
                     </div>
+                    <div className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2">
+                      {!statsLoaded ? (
+                        <p className="text-[11px] font-semibold text-emerald-800/80">Načítavam tipérske štatistiky...</p>
+                      ) : estimate ? (
+                        <>
+                          <p className="text-[11px] font-black uppercase tracking-wide text-emerald-800">
+                            Šanca úspechu tipu: {toPercent(estimate.probability)}
+                          </p>
+                          <p className="mt-0.5 text-[11px] font-medium text-emerald-900/80">
+                            Model: {estimate.sourceLabel} • vzorka {estimate.sampleSize}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-[11px] font-semibold text-emerald-800/80">
+                          Vyplň kurz, šport a ligu pre odhad šance.
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )
               })}
@@ -321,6 +430,12 @@ export function AddTicketForm({ users, sports, leagues, onClose }: AddTicketForm
                 <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Možná výhra</span>
                 <span className="max-w-[62%] break-all text-right text-lg font-black leading-tight text-emerald-500 md:text-xl">
                   {isNaN(possibleWin) ? '0' : Math.floor(possibleWin).toLocaleString()} Kč
+                </span>
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-2 border-t border-slate-800 pt-2">
+                <span className="text-xs font-bold uppercase tracking-widest text-slate-400">Šanca tiketu</span>
+                <span className="max-w-[62%] break-all text-right text-sm font-black leading-tight text-cyan-300 md:text-base">
+                  {!statsLoaded ? 'Načítavam...' : ticketWinProbability === null ? 'Nedostatok dát' : toPercent(ticketWinProbability)}
                 </span>
               </div>
             </div>
