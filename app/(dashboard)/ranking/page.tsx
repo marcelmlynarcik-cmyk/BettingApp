@@ -100,14 +100,14 @@ function formatYield(value: number) {
   return `${value >= 0 ? '+' : ''}${value.toFixed(1)} %`
 }
 
-async function fetchAllRows<T>(getPage: (from: number, to: number) => Promise<{ data: T[] | null }>) {
+async function fetchAllRows<T>(getPage: (from: number, to: number) => unknown) {
   const pageSize = 1000
   let from = 0
   const all: T[] = []
 
   while (true) {
     const to = from + pageSize - 1
-    const { data } = await getPage(from, to)
+    const { data } = (await getPage(from, to)) as { data: T[] | null }
     const chunk = data || []
 
     all.push(...chunk)
