@@ -11,6 +11,8 @@ async function getDashboardData() {
   const supabase = await createClient()
   const toDateKey = (date: Date) =>
     `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+  const now = new Date()
+  const todayKey = toDateKey(now)
   
   // Get all tickets for balance calculation (following user formula)
   const { data: allTickets } = await supabase
@@ -28,6 +30,8 @@ async function getDashboardData() {
         league:leagues (*)
       )
     `)
+    .eq('status', 'pending')
+    .eq('date', todayKey)
     .order('created_at', { ascending: false })
     .limit(5)
 
@@ -45,10 +49,8 @@ async function getDashboardData() {
   const currentBankroll = totalPayouts + totalCashflow - totalStakes
 
   // Get current month date range
-  const now = new Date()
   const firstDay = toDateKey(new Date(now.getFullYear(), now.getMonth(), 1))
   const lastDay = toDateKey(new Date(now.getFullYear(), now.getMonth() + 1, 0))
-  const todayKey = toDateKey(now)
 
   // Get users
   const { data: users } = await supabase.from('users').select('*')
@@ -92,6 +94,7 @@ async function getDashboardData() {
     .reduce((sum, t) => sum + (Number(t.payout || 0) - Number(t.stake || 0)), 0)
 
   const openTickets = allTicketsSafe.filter((t) => t.status === 'pending').length
+  const todayPendingTickets = allTicketsSafe.filter((t) => t.status === 'pending' && t.date === todayKey).length
 
   // Calculate Monthly User Stats for Leaderboard
   const monthlyLeaderboard = users?.map((user) => {
@@ -125,12 +128,13 @@ async function getDashboardData() {
     pendingPotentialWins,
     todayProfit,
     openTickets,
+    todayPendingTickets,
     recentTickets: (recentTicketsData as TicketType[]) || []
   }
 }
 
 export default async function OverviewPage() {
-  const { stats, currentBankroll, monthlyLeaderboard, recentTickets, pendingPotentialWins, todayProfit, openTickets } = await getDashboardData()
+  const { stats, currentBankroll, monthlyLeaderboard, recentTickets, pendingPotentialWins, todayProfit, openTickets, todayPendingTickets } = await getDashboardData()
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -196,7 +200,12 @@ export default async function OverviewPage() {
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between px-1">
-            <h2 className="text-lg font-bold text-black uppercase tracking-wider text-sm">Najnovšie tikety</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold text-black uppercase tracking-wider text-sm">Dnešné nevyhodnotené tikety</h2>
+              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                {todayPendingTickets}
+              </span>
+            </div>
             <Link 
               href="/tickets" 
               className="group flex items-center gap-1 text-xs font-bold text-emerald-500 hover:text-emerald-400 transition-colors"
@@ -207,8 +216,15 @@ export default async function OverviewPage() {
           </div>
           <div className="grid gap-3">
             {recentTickets.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-800 p-12 text-center text-slate-500 font-medium">
-                Zatiaľ žiadne tikety
+              <div className="rounded-xl border border-dashed border-slate-800 p-12 text-center">
+                <p className="font-medium text-slate-500">Dnes nemáš žiadne nevyhodnotené tikety</p>
+                <Link
+                  href="/tickets"
+                  className="mt-4 inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-700 transition-colors hover:bg-emerald-500/20"
+                >
+                  Pridať tiket
+                  <ArrowRight className="h-3 w-3" />
+                </Link>
               </div>
             ) : (
               recentTickets.map((ticket) => (
