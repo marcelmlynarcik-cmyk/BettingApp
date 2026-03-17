@@ -30,8 +30,7 @@ async function getDashboardData() {
         league:leagues (*)
       )
     `)
-    .eq('status', 'pending')
-    .eq('date', todayKey)
+    .or(`status.eq.pending,date.eq.${todayKey}`)
     .order('created_at', { ascending: false })
     .limit(5)
 
@@ -94,7 +93,7 @@ async function getDashboardData() {
     .reduce((sum, t) => sum + (Number(t.payout || 0) - Number(t.stake || 0)), 0)
 
   const openTickets = allTicketsSafe.filter((t) => t.status === 'pending').length
-  const todayPendingTickets = allTicketsSafe.filter((t) => t.status === 'pending' && t.date === todayKey).length
+  const todayOrPendingTickets = allTicketsSafe.filter((t) => t.status === 'pending' || t.date === todayKey).length
 
   // Calculate Monthly User Stats for Leaderboard
   const monthlyLeaderboard = users?.map((user) => {
@@ -128,13 +127,13 @@ async function getDashboardData() {
     pendingPotentialWins,
     todayProfit,
     openTickets,
-    todayPendingTickets,
+    todayOrPendingTickets,
     recentTickets: (recentTicketsData as TicketType[]) || []
   }
 }
 
 export default async function OverviewPage() {
-  const { stats, currentBankroll, monthlyLeaderboard, recentTickets, pendingPotentialWins, todayProfit, openTickets, todayPendingTickets } = await getDashboardData()
+  const { stats, currentBankroll, monthlyLeaderboard, recentTickets, pendingPotentialWins, todayProfit, openTickets, todayOrPendingTickets } = await getDashboardData()
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -201,9 +200,9 @@ export default async function OverviewPage() {
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-black uppercase tracking-wider text-sm">Dnešné nevyhodnotené tikety</h2>
+              <h2 className="text-lg font-bold text-black uppercase tracking-wider text-sm">Dnešné a nevyhodnotené tikety</h2>
               <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
-                {todayPendingTickets}
+                {todayOrPendingTickets}
               </span>
             </div>
             <Link 
@@ -217,7 +216,7 @@ export default async function OverviewPage() {
           <div className="grid gap-3">
             {recentTickets.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-800 p-12 text-center">
-                <p className="font-medium text-slate-500">Dnes nemáš žiadne nevyhodnotené tikety</p>
+                <p className="font-medium text-slate-500">Nemáš dnešné ani nevyhodnotené tikety</p>
                 <Link
                   href="/tickets"
                   className="mt-4 inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-700 transition-colors hover:bg-emerald-500/20"
