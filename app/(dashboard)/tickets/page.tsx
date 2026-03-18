@@ -62,6 +62,7 @@ async function getTickets() {
         sport_id: prediction.sport_id,
         league_id: prediction.league_id,
         odds: Number(prediction.odds),
+        result: prediction.result,
       })),
       statsIndex,
     )

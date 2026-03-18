@@ -717,7 +717,8 @@ export function StatisticsCharts({
                 <p className="text-xs font-semibold text-muted-foreground">#{index + 1} • {formatDate(ticket.date)}</p>
                 <p className="truncate text-sm font-medium text-foreground">{ticket.description}</p>
                 <p className="text-xs text-muted-foreground">Kurz {ticket.odds.toFixed(2)} • Vklad {ticket.stake.toFixed(0)} Kč</p>
-                <p className="text-sm font-semibold text-emerald-600">{formatCurrency(ticket.profit)}</p>
+                <p className="text-sm font-semibold text-emerald-600">Čistý zisk: {formatCurrency(ticket.profit)}</p>
+                <p className="text-xs text-muted-foreground">Výhra (payout): {formatCurrency(ticket.payout)}</p>
               </div>
             ))}
           </div>

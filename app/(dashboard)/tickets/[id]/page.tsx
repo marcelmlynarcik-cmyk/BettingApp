@@ -91,6 +91,7 @@ async function getTicketData(id: string) {
       sport_id: p.sport_id,
       league_id: p.league_id,
       odds: Number(p.odds),
+      result: p.result,
     })),
     statsIndex,
   )

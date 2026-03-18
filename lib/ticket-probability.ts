@@ -13,6 +13,10 @@ export interface PredictionLike {
   odds: number
 }
 
+export interface TicketPredictionLike extends PredictionLike {
+  result?: 'OK' | 'NOK' | 'Pending' | string | null
+}
+
 export interface WinRateEstimate {
   probability: number
   sampleSize: number
@@ -117,13 +121,24 @@ export function estimatePredictionProbability(
 }
 
 export function estimateTicketProbability(
-  predictions: PredictionLike[],
+  predictions: TicketPredictionLike[],
   statsMap: Map<string, StatsBucket>,
 ) {
   const estimates = predictions
     .map((prediction) => estimatePredictionProbability(prediction, statsMap))
     .filter((estimate): estimate is WinRateEstimate => Boolean(estimate))
 
-  if (estimates.length === 0) return null
-  return estimates.reduce((acc, estimate) => acc * estimate.probability, 1)
+  if (estimates.length === 0 || estimates.length !== predictions.length) return null
+
+  const baseProbability = estimates.reduce((acc, estimate) => acc * estimate.probability, 1)
+  const allResolved = predictions.every((prediction) => prediction.result === 'OK' || prediction.result === 'NOK')
+
+  // Keep original pre-match probability when the whole ticket is already resolved.
+  if (allResolved) return baseProbability
+
+  return predictions.reduce((acc, prediction, index) => {
+    if (prediction.result === 'OK') return acc
+    if (prediction.result === 'NOK') return 0
+    return acc * estimates[index].probability
+  }, 1)
 }

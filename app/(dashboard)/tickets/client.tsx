@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { TicketCard } from '@/components/TicketCard'
 import { AddTicketForm } from '@/components/add-ticket-form'
 import type { Ticket, Prediction, User, Sport, League } from '@/lib/types'
@@ -23,17 +23,34 @@ export function TicketsPageClient({
   const [showAddForm, setShowAddForm] = useState(false)
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [page, setPage] = useState(1)
+  const listTopRef = useRef<HTMLDivElement>(null)
   const PAGE_SIZE = 10
 
-  const filteredTickets = tickets.filter((ticket) => {
-    if (statusFilter === 'all') return true
-    return ticket.status === statusFilter
-  })
+  const filteredTickets = useMemo(() => {
+    const filtered = tickets.filter((ticket) => {
+      if (statusFilter === 'all') return true
+      return ticket.status === statusFilter
+    })
+
+    return filtered.sort((a, b) => {
+      const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime()
+      if (dateDiff !== 0) return dateDiff
+
+      const createdDiff = new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      if (createdDiff !== 0) return createdDiff
+
+      return b.id.localeCompare(a.id)
+    })
+  }, [tickets, statusFilter])
 
   const totalPages = Math.max(1, Math.ceil(filteredTickets.length / PAGE_SIZE))
   const currentPage = Math.min(page, totalPages)
   const pageStart = (currentPage - 1) * PAGE_SIZE
   const paginatedTickets = filteredTickets.slice(pageStart, pageStart + PAGE_SIZE)
+
+  useEffect(() => {
+    listTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [currentPage, statusFilter])
 
   const stats = {
     total: tickets.length,
@@ -151,7 +168,7 @@ export function TicketsPageClient({
         </button>
       </div>
 
-      <div className="grid gap-3">
+      <div ref={listTopRef} className="grid gap-3">
         {filteredTickets.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-900/20 p-12 text-center text-slate-500 font-medium">
             V tejto kategórii zatiaľ nemáš žiadne tikety.

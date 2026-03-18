@@ -19,6 +19,9 @@ async function getDashboardData() {
     `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
   const now = new Date()
   const todayKey = toDateKey(now)
+  const yesterday = new Date(now)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const yesterdayKey = toDateKey(yesterday)
   
   // Get all tickets for balance calculation (following user formula)
   const { data: allTickets } = await supabase
@@ -104,8 +107,13 @@ async function getDashboardData() {
     .filter((t) => t.date === todayKey && (t.status === 'win' || t.status === 'loss'))
     .reduce((sum, t) => sum + (Number(t.payout || 0) - Number(t.stake || 0)), 0)
 
+  const yesterdayProfit = allTicketsSafe
+    .filter((t) => t.date === yesterdayKey && (t.status === 'win' || t.status === 'loss'))
+    .reduce((sum, t) => sum + (Number(t.payout || 0) - Number(t.stake || 0)), 0)
+
   const openTickets = allTicketsSafe.filter((t) => t.status === 'pending').length
   const todayOrPendingTickets = allTicketsSafe.filter((t) => t.status === 'pending' || t.date === todayKey).length
+  const ticketStakeById = new Map<string, number>(allTicketsSafe.map((ticket) => [ticket.id, Number(ticket.stake || 0)]))
 
   // Calculate Monthly User Stats for Leaderboard
   const monthlyLeaderboard = users?.map((user) => {
@@ -114,7 +122,31 @@ async function getDashboardData() {
     const losses = userPreds.filter((p) => p.result === 'NOK').length
     const completed = wins + losses
     const win_rate = completed > 0 ? (wins / completed) * 100 : 0
-    const total_profit = userPreds.reduce((sum, p) => sum + Number(p.profit || 0), 0)
+    const predictionCountByTicket = userPreds.reduce((acc, prediction) => {
+      if (!prediction.ticket_id) return acc
+      acc[prediction.ticket_id] = (acc[prediction.ticket_id] || 0) + 1
+      return acc
+    }, {} as Record<string, number>)
+
+    let totalStake = 0
+    let totalWins = 0
+
+    for (const prediction of userPreds) {
+      if (prediction.result !== 'OK' && prediction.result !== 'NOK') continue
+
+      const ticketStake = Number(ticketStakeById.get(prediction.ticket_id || '') || 0)
+      const legs = prediction.ticket_id ? predictionCountByTicket[prediction.ticket_id] || 0 : 0
+      const stakeShare = legs > 0 ? ticketStake / legs : 0
+
+      totalStake += stakeShare
+      if (prediction.result === 'OK') {
+        const odds = Number(prediction.odds || 0)
+        totalWins += odds * stakeShare
+      }
+    }
+
+    const total_profit = totalWins - totalStake
+    const yield_value = totalStake > 0 ? (total_profit / totalStake) * 100 : 0
     const average_odds = userPreds.length > 0 
       ? userPreds.reduce((sum, p) => sum + Number(p.odds), 0) / userPreds.length 
       : 0
@@ -128,7 +160,8 @@ async function getDashboardData() {
       pending: userPreds.filter((p) => p.result === 'Pending').length,
       win_rate,
       total_profit,
-      average_odds
+      average_odds,
+      yield: yield_value,
     }
   }) || []
 
@@ -159,6 +192,7 @@ async function getDashboardData() {
         sport_id: prediction.sport_id,
         league_id: prediction.league_id,
         odds: Number(prediction.odds),
+        result: prediction.result,
       })),
       statsIndex,
     )
@@ -176,6 +210,7 @@ async function getDashboardData() {
     monthlyLeaderboard,
     pendingPotentialWins,
     todayProfit,
+    yesterdayProfit,
     openTickets,
     todayOrPendingTickets,
     recentTickets
@@ -183,7 +218,7 @@ async function getDashboardData() {
 }
 
 export default async function OverviewPage() {
-  const { stats, currentBankroll, monthlyLeaderboard, recentTickets, pendingPotentialWins, todayProfit, openTickets, todayOrPendingTickets } = await getDashboardData()
+  const { stats, currentBankroll, monthlyLeaderboard, recentTickets, pendingPotentialWins, todayProfit, yesterdayProfit, openTickets, todayOrPendingTickets } = await getDashboardData()
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -227,7 +262,7 @@ export default async function OverviewPage() {
 
         <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
           <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Rýchly stav</p>
-          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2">
               <p className="text-[10px] font-bold uppercase tracking-wide text-amber-700/80">Pending možná výhra</p>
               <p className="mt-1 text-base font-black text-amber-700">{pendingPotentialWins.toFixed(0)} Kč</p>
@@ -236,6 +271,12 @@ export default async function OverviewPage() {
               <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Dnešný profit</p>
               <p className={`mt-1 text-base font-black ${todayProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                 {todayProfit >= 0 ? '+' : ''}{todayProfit.toFixed(0)} Kč
+              </p>
+            </div>
+            <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Včerajší profit</p>
+              <p className={`mt-1 text-base font-black ${yesterdayProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                {yesterdayProfit >= 0 ? '+' : ''}{yesterdayProfit.toFixed(0)} Kč
               </p>
             </div>
             <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-2">

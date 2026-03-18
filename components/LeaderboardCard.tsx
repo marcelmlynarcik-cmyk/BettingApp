@@ -5,13 +5,14 @@ import type { UserStats } from '@/lib/types'
 import { Trophy, TrendingUp, TrendingDown, Target, BarChart3 } from 'lucide-react'
 
 interface LeaderboardCardProps {
-  stats: (UserStats & { average_odds: number })[]
+  stats: (UserStats & { average_odds: number; yield: number })[]
 }
 
 export function LeaderboardCard({ stats }: LeaderboardCardProps) {
-  // Sorting: correct_predictions DESC, average_odds DESC
+  // Sorting: OK tips DESC, tie-break by yield DESC.
   const sortedStats = [...stats].sort((a, b) => {
     if (b.wins !== a.wins) return b.wins - a.wins
+    if (b.yield !== a.yield) return b.yield - a.yield
     return b.average_odds - a.average_odds
   })
 

@@ -870,7 +870,7 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
         payout: toNumber(ticket.payout),
         profit: toNumber(ticket.payout) - toNumber(ticket.stake),
       }))
-      .sort((a, b) => b.profit - a.profit || b.odds - a.odds)
+      .sort((a, b) => b.profit - a.profit || b.payout - a.payout || b.odds - a.odds)
       .slice(0, 3)
 
     return {
