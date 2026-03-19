@@ -80,6 +80,20 @@ function fallbackProbabilityFromOdds(odds: number) {
   return Math.max(0.02, Math.min(0.98, implied))
 }
 
+function buildSuggestedStakes(bankroll: number, ticketCount: number) {
+  if (ticketCount < 1) return []
+  if (bankroll < 200) return Array.from({ length: ticketCount }, () => 50)
+
+  const stakes: number[] = []
+  let remainingBank = bankroll
+  for (let index = 0; index < ticketCount; index += 1) {
+    const ticketStake = Math.floor(remainingBank * 0.1)
+    stakes.push(Math.max(0, ticketStake))
+    remainingBank -= ticketStake
+  }
+  return stakes
+}
+
 function calculateCombinedOdds(predictions: NormalizedPrediction[]) {
   if (predictions.length === 0) return 0
   return predictions.reduce((acc, prediction) => acc * prediction.odds, 1)
@@ -163,6 +177,7 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
   const [ticketUrl, setTicketUrl] = useState('')
   const [ticketCount, setTicketCount] = useState('3')
   const [multiTicketUrls, setMultiTicketUrls] = useState<string[]>([])
+  const [multiTicketStakeInputs, setMultiTicketStakeInputs] = useState<string[]>([])
   const [historicalPredictions, setHistoricalPredictions] = useState<ClosedPredictionRecord[]>([])
   const [statsLoaded, setStatsLoaded] = useState(false)
 
@@ -228,6 +243,15 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
     return Math.min(parsed, 20)
   }, [ticketCount])
 
+  const suggestedSingleStake = useMemo(() => {
+    if (currentBankroll < 200) return 50
+    return Math.max(0, Math.floor(currentBankroll * 0.1))
+  }, [currentBankroll])
+
+  useEffect(() => {
+    setStake((prev) => (prev.trim() ? prev : String(suggestedSingleStake)))
+  }, [suggestedSingleStake])
+
   const [multiRowsByUser, setMultiRowsByUser] = useState<Record<string, PredictionInput[]>>({})
 
   useEffect(() => {
@@ -257,6 +281,20 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
       Array.from({ length: parsedTicketCount }, (_, index) => previous[index] || ''),
     )
   }, [parsedTicketCount])
+
+  const suggestedMultiTicketStakes = useMemo(
+    () => buildSuggestedStakes(currentBankroll, parsedTicketCount),
+    [currentBankroll, parsedTicketCount],
+  )
+
+  useEffect(() => {
+    setMultiTicketStakeInputs((previous) =>
+      Array.from(
+        { length: parsedTicketCount },
+        (_, index) => previous[index] || String(suggestedMultiTicketStakes[index] ?? 0),
+      ),
+    )
+  }, [parsedTicketCount, suggestedMultiTicketStakes])
 
   useEffect(() => {
     let isActive = true
@@ -365,22 +403,15 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
 
   const canGenerateAllMultiTickets = multiTickets.length === parsedTicketCount
 
-  const multiTicketStakes = useMemo(() => {
-    if (parsedTicketCount < 1) return []
-
-    if (currentBankroll < 200) {
-      return Array.from({ length: parsedTicketCount }, () => 50)
-    }
-
-    const stakes: number[] = []
-    let remainingBank = currentBankroll
-    for (let index = 0; index < parsedTicketCount; index += 1) {
-      const ticketStake = Number((remainingBank * 0.1).toFixed(2))
-      stakes.push(ticketStake)
-      remainingBank -= ticketStake
-    }
-    return stakes
-  }, [currentBankroll, parsedTicketCount])
+  const multiTicketStakes = useMemo(
+    () =>
+      multiTicketStakeInputs.map((value) => {
+        const parsed = Number.parseFloat(value)
+        if (!Number.isFinite(parsed) || parsed <= 0) return 0
+        return Math.floor(parsed)
+      }),
+    [multiTicketStakeInputs],
+  )
 
   const multiTotalStake = useMemo(
     () => multiTicketStakes.reduce((sum, stakeValue) => sum + stakeValue, 0),
@@ -457,7 +488,7 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
     const supabase = createClient()
 
     if (mode === 'single') {
-      const stakeNum = Number.parseFloat(stake)
+      const stakeNum = Math.floor(Number.parseFloat(stake))
 
       if (!Number.isFinite(stakeNum) || stakeNum <= 0) {
         notifyError('Zadaj platný vklad')
@@ -491,6 +522,12 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
 
     if (!canGenerateAllMultiTickets) {
       notifyError('Vyplň pre každého tipéra všetky riadky (šport, liga, kurz), aby sa dali vytvoriť tikety')
+      setIsSubmitting(false)
+      return
+    }
+
+    if (multiTicketStakes.length < multiTickets.length || multiTicketStakes.some((value) => value <= 0)) {
+      notifyError('Skontroluj vklady na tiketoch. Každý vklad musí byť väčší ako 0 Kč.')
       setIsSubmitting(false)
       return
     }
@@ -536,7 +573,8 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
     onClose()
   }
 
-  const singlePossibleWin = Number.parseFloat(stake) * singleCombinedOdds
+  const singleStakeForPreview = Math.floor(Number.parseFloat(stake))
+  const singlePossibleWin = singleStakeForPreview * singleCombinedOdds
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/80 backdrop-blur-sm md:items-center">
@@ -622,9 +660,9 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-black uppercase tracking-widest text-muted-foreground">Vklad tiket #1 (auto)</label>
+                  <label className="block text-xs font-black uppercase tracking-widest text-muted-foreground">Vklad tiket #1 (predvolený)</label>
                   <div className="mt-1 rounded-lg border border-border bg-secondary/50 px-3 py-2.5 text-base font-black">
-                    {(multiTicketStakes[0] ?? 0).toFixed(2)} Kč
+                    {(suggestedMultiTicketStakes[0] ?? 0)} Kč
                   </div>
                 </div>
               </>
@@ -821,7 +859,7 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
                         <span className="uppercase tracking-wide text-slate-400">#{ticket.rank}</span>
                         <span className="text-emerald-400">Kurz {ticket.combinedOdds.toFixed(2)}</span>
                         <span className="text-cyan-300">{toPercent(ticket.probability)}</span>
-                        <span className="text-amber-300">Vklad {(multiTicketStakes[ticketIndex] ?? 0).toFixed(2)} Kč</span>
+                        <span className="text-amber-300">Vklad {(multiTicketStakes[ticketIndex] ?? 0)} Kč</span>
                       </div>
                       <div className="mt-2 space-y-1 text-[10px] text-slate-300">
                         {ticket.predictions.map((prediction, predictionIndex) => {
@@ -834,6 +872,27 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
                             </p>
                           )
                         })}
+                      </div>
+                      <div className="mt-2">
+                        <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                          Vklad tiketu #{ticket.rank} (Kč)
+                        </label>
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          step="1"
+                          min={1}
+                          value={multiTicketStakeInputs[ticketIndex] || ''}
+                          onChange={(e) =>
+                            setMultiTicketStakeInputs((prev) => {
+                              const updated = [...prev]
+                              updated[ticketIndex] = e.target.value
+                              return updated
+                            })
+                          }
+                          placeholder={String(suggestedMultiTicketStakes[ticketIndex] ?? 0)}
+                          className="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-[11px] font-semibold text-slate-100 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                        />
                       </div>
                       <div className="mt-2">
                         <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
@@ -864,7 +923,7 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
                 </div>
 
                 <div className="mt-3 border-t border-slate-800 pt-2 text-[11px] font-bold text-slate-300">
-                  Celkový vklad: {multiTotalStake.toFixed(2)} Kč
+                  Celkový vklad: {multiTotalStake} Kč
                 </div>
               </div>
             </div>
