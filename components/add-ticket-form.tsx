@@ -57,6 +57,14 @@ function createRowId() {
   return `${Date.now()}-${Math.random()}`
 }
 
+function normalizeName(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+}
+
 function makePrediction(userId: string) {
   return {
     id: createRowId(),
@@ -154,6 +162,7 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
   const [description, setDescription] = useState('')
   const [ticketUrl, setTicketUrl] = useState('')
   const [ticketCount, setTicketCount] = useState('3')
+  const [multiTicketUrls, setMultiTicketUrls] = useState<string[]>([])
   const [historicalPredictions, setHistoricalPredictions] = useState<ClosedPredictionRecord[]>([])
   const [statsLoaded, setStatsLoaded] = useState(false)
 
@@ -172,10 +181,23 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
     setSinglePredictions(defaultSingleRows)
   }, [defaultSingleRows])
 
-  const sortedUsers = useMemo(
-    () => [...users].sort((a, b) => a.name.localeCompare(b.name, 'sk', { sensitivity: 'base' })),
-    [users],
-  )
+  const orderedUsers = useMemo(() => {
+    const priority = ['marcel', 'peter', 'michal']
+    return [...users].sort((a, b) => {
+      const aName = normalizeName(a.name)
+      const bName = normalizeName(b.name)
+      const aIndex = priority.indexOf(aName)
+      const bIndex = priority.indexOf(bName)
+
+      if (aIndex !== -1 || bIndex !== -1) {
+        if (aIndex === -1) return 1
+        if (bIndex === -1) return -1
+        return aIndex - bIndex
+      }
+
+      return a.name.localeCompare(b.name, 'sk', { sensitivity: 'base' })
+    })
+  }, [users])
 
   const sortedSports = useMemo(
     () => [...sports].sort((a, b) => a.name.localeCompare(b.name, 'sk', { sensitivity: 'base' })),
@@ -187,6 +209,18 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
     for (const user of users) map.set(user.id, user)
     return map
   }, [users])
+
+  const sportMap = useMemo(() => {
+    const map = new Map<string, Sport>()
+    for (const sport of sports) map.set(sport.id, sport)
+    return map
+  }, [sports])
+
+  const leagueMap = useMemo(() => {
+    const map = new Map<string, League>()
+    for (const league of leagues) map.set(league.id, league)
+    return map
+  }, [leagues])
 
   const parsedTicketCount = useMemo(() => {
     const parsed = Number.parseInt(ticketCount, 10)
@@ -200,7 +234,7 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
     setMultiRowsByUser((previous) => {
       const next: Record<string, PredictionInput[]> = {}
 
-      for (const user of sortedUsers) {
+      for (const user of orderedUsers) {
         const currentRows = previous[user.id] || []
         const filled = Array.from({ length: parsedTicketCount }, (_, index) => {
           if (currentRows[index]) {
@@ -216,7 +250,13 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
 
       return next
     })
-  }, [parsedTicketCount, sortedUsers])
+  }, [orderedUsers, parsedTicketCount])
+
+  useEffect(() => {
+    setMultiTicketUrls((previous) =>
+      Array.from({ length: parsedTicketCount }, (_, index) => previous[index] || ''),
+    )
+  }, [parsedTicketCount])
 
   useEffect(() => {
     let isActive = true
@@ -319,18 +359,33 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
   }, [singleIsComplete, singleNormalized, statsMap])
 
   const multiTickets = useMemo(
-    () => buildTicketsFromUserRows(sortedUsers, multiRowsByUser, parsedTicketCount, statsMap),
-    [sortedUsers, multiRowsByUser, parsedTicketCount, statsMap],
+    () => buildTicketsFromUserRows(orderedUsers, multiRowsByUser, parsedTicketCount, statsMap),
+    [orderedUsers, multiRowsByUser, parsedTicketCount, statsMap],
   )
 
   const canGenerateAllMultiTickets = multiTickets.length === parsedTicketCount
 
-  const stakePerGeneratedTicket = useMemo(() => {
-    if (currentBankroll < 200) return 50
-    return Number((currentBankroll * 0.1).toFixed(2))
-  }, [currentBankroll])
+  const multiTicketStakes = useMemo(() => {
+    if (parsedTicketCount < 1) return []
 
-  const multiTotalStake = stakePerGeneratedTicket * parsedTicketCount
+    if (currentBankroll < 200) {
+      return Array.from({ length: parsedTicketCount }, () => 50)
+    }
+
+    const stakes: number[] = []
+    let remainingBank = currentBankroll
+    for (let index = 0; index < parsedTicketCount; index += 1) {
+      const ticketStake = Number((remainingBank * 0.1).toFixed(2))
+      stakes.push(ticketStake)
+      remainingBank -= ticketStake
+    }
+    return stakes
+  }, [currentBankroll, parsedTicketCount])
+
+  const multiTotalStake = useMemo(
+    () => multiTicketStakes.reduce((sum, stakeValue) => sum + stakeValue, 0),
+    [multiTicketStakes],
+  )
 
   const createOneTicket = async (
     supabase: ReturnType<typeof createClient>,
@@ -448,13 +503,14 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
       const autoDescription = description.trim()
         ? `${description.trim()} #${index + 1}`
         : `Auto tiket #${index + 1}`
+      const ticketUrlValue = multiTicketUrls[index]?.trim() ? multiTicketUrls[index].trim() : null
 
       const result = await createOneTicket(
         supabase,
         ticket.predictions,
-        stakePerGeneratedTicket,
+        multiTicketStakes[index] ?? 0,
         autoDescription,
-        null,
+        ticketUrlValue,
       )
 
       if (result.ok) {
@@ -524,7 +580,7 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 text-black">
-          <div className={`grid gap-3 ${mode === 'multi' ? 'grid-cols-3' : 'grid-cols-2'}`}>
+          <div className={`grid gap-3 ${mode === 'multi' ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'}`}>
             <div>
               <label className="block text-xs font-black uppercase tracking-widest text-muted-foreground">Dátum</label>
               <input
@@ -566,9 +622,9 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-black uppercase tracking-widest text-muted-foreground">Vklad na tiket (auto)</label>
+                  <label className="block text-xs font-black uppercase tracking-widest text-muted-foreground">Vklad tiket #1 (auto)</label>
                   <div className="mt-1 rounded-lg border border-border bg-secondary/50 px-3 py-2.5 text-base font-black">
-                    {stakePerGeneratedTicket.toFixed(2)} Kč
+                    {(multiTicketStakes[0] ?? 0).toFixed(2)} Kč
                   </div>
                 </div>
               </>
@@ -621,7 +677,7 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
                           className="w-full rounded-lg border border-border bg-white px-2 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary transition-all"
                         >
                           <option value="">Vybrať</option>
-                          {sortedUsers.map((user) => (
+                          {orderedUsers.map((user) => (
                             <option key={user.id} value={user.id}>{user.name}</option>
                           ))}
                         </select>
@@ -689,10 +745,10 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
           ) : (
             <div className="space-y-4">
               <div className="rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs font-semibold text-muted-foreground">
-                Bank: {currentBankroll.toFixed(2)} Kč • Pravidlo vkladu: {currentBankroll < 200 ? '50 Kč na tiket (bank pod 200 Kč)' : '10% banku na tiket'}
+                Bank: {currentBankroll.toFixed(2)} Kč • Pravidlo vkladu: {currentBankroll < 200 ? '50 Kč na tiket (bank pod 200 Kč)' : '10% zo zostatku banku pre každý ďalší tiket'}
               </div>
 
-              {sortedUsers.map((user) => {
+              {orderedUsers.map((user) => {
                 const rows = multiRowsByUser[user.id] || []
                 return (
                   <div key={user.id} className="rounded-xl border border-border bg-secondary/20 p-3">
@@ -759,17 +815,44 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
                 </div>
 
                 <div className="mt-2 space-y-2 border-t border-slate-800 pt-2">
-                  {multiTickets.map((ticket) => (
+                  {multiTickets.map((ticket, ticketIndex) => (
                     <div key={ticket.rank} className="rounded-lg border border-slate-800 px-2 py-2">
                       <div className="flex items-center justify-between text-[11px] font-bold">
                         <span className="uppercase tracking-wide text-slate-400">#{ticket.rank}</span>
                         <span className="text-emerald-400">Kurz {ticket.combinedOdds.toFixed(2)}</span>
                         <span className="text-cyan-300">{toPercent(ticket.probability)}</span>
-                        <span className="text-amber-300">Vklad {stakePerGeneratedTicket.toFixed(2)} Kč</span>
+                        <span className="text-amber-300">Vklad {(multiTicketStakes[ticketIndex] ?? 0).toFixed(2)} Kč</span>
                       </div>
-                      <p className="mt-1 text-[10px] text-slate-400">
-                        {ticket.predictions.map((prediction) => userMap.get(prediction.user_id)?.name || 'Tipér').join(' • ')}
-                      </p>
+                      <div className="mt-2 space-y-1 text-[10px] text-slate-300">
+                        {ticket.predictions.map((prediction, predictionIndex) => {
+                          const userName = userMap.get(prediction.user_id)?.name || 'Tipér'
+                          const sportName = sportMap.get(prediction.sport_id)?.name || 'Neznámy šport'
+                          const leagueName = leagueMap.get(prediction.league_id)?.name || 'Neznáma liga'
+                          return (
+                            <p key={`${ticket.rank}-${predictionIndex}`}>
+                              {userName}: {sportName} / {leagueName} / kurz {prediction.odds.toFixed(2)}
+                            </p>
+                          )
+                        })}
+                      </div>
+                      <div className="mt-2">
+                        <label className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                          URL tiketu #{ticket.rank}
+                        </label>
+                        <input
+                          type="url"
+                          value={multiTicketUrls[ticketIndex] || ''}
+                          onChange={(e) =>
+                            setMultiTicketUrls((prev) => {
+                              const updated = [...prev]
+                              updated[ticketIndex] = e.target.value
+                              return updated
+                            })
+                          }
+                          placeholder="https://..."
+                          className="w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-[11px] font-semibold text-slate-100 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                        />
+                      </div>
                     </div>
                   ))}
 
