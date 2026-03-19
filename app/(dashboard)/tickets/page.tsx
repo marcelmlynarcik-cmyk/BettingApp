@@ -93,12 +93,28 @@ async function getLeagues() {
   return leagues || []
 }
 
+async function getCurrentBankroll() {
+  const supabase = await createClient()
+
+  const [{ data: allTickets }, { data: cashflow }] = await Promise.all([
+    supabase.from('tickets').select('stake, payout'),
+    supabase.from('finance_transactions').select('amount').in('type', ['deposit', 'withdraw']),
+  ])
+
+  const totalPayouts = (allTickets || []).reduce((sum, ticket) => sum + Number(ticket.payout || 0), 0)
+  const totalStakes = (allTickets || []).reduce((sum, ticket) => sum + Number(ticket.stake || 0), 0)
+  const totalCashflow = (cashflow || []).reduce((sum, tx) => sum + Number(tx.amount || 0), 0)
+
+  return totalPayouts + totalCashflow - totalStakes
+}
+
 export default async function TicketsPage() {
-  const [tickets, users, sports, leagues] = await Promise.all([
+  const [tickets, users, sports, leagues, currentBankroll] = await Promise.all([
     getTickets(),
     getUsers(),
     getSports(),
     getLeagues(),
+    getCurrentBankroll(),
   ])
 
   return (
@@ -107,6 +123,7 @@ export default async function TicketsPage() {
       users={users}
       sports={sports}
       leagues={leagues}
+      currentBankroll={currentBankroll}
     />
   )
 }

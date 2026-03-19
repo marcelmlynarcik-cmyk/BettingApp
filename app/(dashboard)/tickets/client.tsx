@@ -12,6 +12,7 @@ interface TicketsPageClientProps {
   users: User[]
   sports: Sport[]
   leagues: League[]
+  currentBankroll: number
 }
 
 export function TicketsPageClient({
@@ -19,6 +20,7 @@ export function TicketsPageClient({
   users,
   sports,
   leagues,
+  currentBankroll,
 }: TicketsPageClientProps) {
   const [showAddForm, setShowAddForm] = useState(false)
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -214,6 +216,7 @@ export function TicketsPageClient({
           users={users}
           sports={sports}
           leagues={leagues}
+          currentBankroll={currentBankroll}
           onClose={() => setShowAddForm(false)}
         />
       )}
