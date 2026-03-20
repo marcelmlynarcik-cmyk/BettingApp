@@ -35,6 +35,7 @@ type TipperInsight = {
   longestNokStreak: number
   longestOkStreakPeriod: { start: string; end: string } | null
   longestNokStreakPeriod: { start: string; end: string } | null
+  brokenTickets: number
   bestSport: { name: string; yield: number; tips: number } | null
   bestLeague: { name: string; yield: number; tips: number } | null
 }
@@ -370,6 +371,7 @@ export function StatisticsCharts({
   const sortedByCorrectTips = [...tipperInsights].sort((a, b) => b.totalCorrect - a.totalCorrect)
   const sortedByLongestOkStreak = [...tipperInsights].sort((a, b) => b.longestOkStreak - a.longestOkStreak)
   const sortedByLongestNokStreak = [...tipperInsights].sort((a, b) => b.longestNokStreak - a.longestNokStreak)
+  const sortedByBrokenTickets = [...tipperInsights].sort((a, b) => b.brokenTickets - a.brokenTickets)
   const chartSurfaceClass = 'rounded-xl border border-border/70 bg-gradient-to-r from-background to-muted/20 p-2 shadow-sm'
   const todayLabel = new Intl.DateTimeFormat('sk-SK', {
     day: '2-digit',
@@ -472,6 +474,19 @@ export function StatisticsCharts({
               value: user.longestNokStreak,
               valueLabel: String(user.longestNokStreak),
               contextLabel: formatStreakPeriod(user.longestNokStreakPeriod),
+            }))}
+          />
+
+          <RankingCard
+            title="Pokazené tikety"
+            subtitle="2 tipy OK + 1 tip NOK (ten NOK „pokazil“ tiket)"
+            barClassName="bg-gradient-to-r from-rose-500 to-orange-500"
+            emptyText={`Žiadny tipér nemá aspoň ${minTips} tipov v tomto období.`}
+            items={sortedByBrokenTickets.map((user) => ({
+              id: `${user.name}-broken-tickets`,
+              name: user.name,
+              value: user.brokenTickets,
+              valueLabel: String(user.brokenTickets),
             }))}
           />
         </div>

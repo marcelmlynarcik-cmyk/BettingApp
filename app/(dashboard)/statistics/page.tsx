@@ -147,6 +147,7 @@ type StatisticsData = {
     longestNokStreak: number
     longestOkStreakPeriod: StreakPeriod | null
     longestNokStreakPeriod: StreakPeriod | null
+    brokenTickets: number
     bestSport: { name: string; yield: number; tips: number } | null
     bestLeague: { name: string; yield: number; tips: number } | null
   }>
@@ -875,12 +876,42 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
           longestNokStreak,
           longestOkStreakPeriod,
           longestNokStreakPeriod,
+          brokenTickets: 0,
           bestSport,
           bestLeague,
         }
       })
       .filter((user) => user.total >= minTips)
       .sort((a, b) => b.winRate - a.winRate)
+
+    const brokenTicketCountByUser = new Map<string, number>()
+    const predictionsByTicket = filteredPredictions.reduce((acc, prediction) => {
+      if (!prediction.ticket_id) return acc
+      if (!acc[prediction.ticket_id]) acc[prediction.ticket_id] = []
+      acc[prediction.ticket_id].push(prediction)
+      return acc
+    }, {} as Record<string, PredictionRecord[]>)
+
+    for (const ticketPredictions of Object.values(predictionsByTicket)) {
+      if (ticketPredictions.length !== 3) continue
+
+      const resolvedPredictions = ticketPredictions.filter((prediction) => {
+        const result = normalizeResult(prediction.result)
+        return result === 'OK' || result === 'NOK'
+      })
+      if (resolvedPredictions.length !== 3) continue
+
+      const nokPredictions = resolvedPredictions.filter((prediction) => normalizeResult(prediction.result) === 'NOK')
+      if (nokPredictions.length !== 1) continue
+
+      const culpritUserId = nokPredictions[0].user_id
+      brokenTicketCountByUser.set(culpritUserId, (brokenTicketCountByUser.get(culpritUserId) || 0) + 1)
+    }
+
+    const tipperInsightsWithBrokenTickets = tipperInsights.map((user) => ({
+      ...user,
+      brokenTickets: brokenTicketCountByUser.get(user.userId) || 0,
+    }))
 
     const bestContextByTipper = tipperInsights.map((user) => ({
       userName: user.name,
@@ -912,7 +943,7 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
       quickStats,
       weekLabels: weekKeys.map(weekLabel),
       contextMinTips,
-      tipperInsights,
+      tipperInsights: tipperInsightsWithBrokenTickets,
       bestContextByTipper,
       topTicketWins,
       monthlyBettingStats: buildMonthlyBettingStats(filteredTickets),
