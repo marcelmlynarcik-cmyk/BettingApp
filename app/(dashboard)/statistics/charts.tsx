@@ -176,20 +176,34 @@ function Sparkline({ values }: { values: number[] }) {
   const range = max - min || 1
   const width = 96
   const height = 24
-  const points = values
-    .map((value, index) => {
-      const x = (index / Math.max(values.length - 1, 1)) * width
-      const y = height - ((value - min) / range) * height
-      return `${x},${y}`
+  const points = values.map((value, index) => {
+    const x = (index / Math.max(values.length - 1, 1)) * width
+    const y = height - ((value - min) / range) * height
+    return { x, y }
+  })
+
+  const linePath = points
+    .map((point, index) => {
+      if (index === 0) return `M ${point.x} ${point.y}`
+      const prev = points[index - 1]
+      const cx = (prev.x + point.x) / 2
+      return `Q ${cx} ${prev.y} ${point.x} ${point.y}`
     })
     .join(' ')
 
+  const areaPath = `${linePath} L ${width} ${height} L 0 ${height} Z`
+
   const trend = values[values.length - 1] - values[0]
   const stroke = trend >= 0 ? 'hsl(145, 63%, 49%)' : 'hsl(10, 72%, 55%)'
+  const fill = trend >= 0 ? 'hsla(145, 63%, 49%, 0.2)' : 'hsla(10, 72%, 55%, 0.2)'
+  const endPoint = points[points.length - 1]
 
   return (
     <svg viewBox={`0 0 ${width} ${height}`} className="h-6 w-24">
-      <polyline points={points} fill="none" stroke={stroke} strokeWidth="2" />
+      <line x1="0" x2={width} y1={height} y2={height} stroke="hsl(var(--border))" strokeWidth="1" opacity="0.4" />
+      <path d={areaPath} fill={fill} />
+      <path d={linePath} fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={endPoint.x} cy={endPoint.y} r="1.8" fill={stroke} stroke="white" strokeWidth="1" />
     </svg>
   )
 }
@@ -311,6 +325,11 @@ export function StatisticsCharts({
   const sortedByCorrectTips = [...tipperInsights].sort((a, b) => b.totalCorrect - a.totalCorrect)
   const sortedByLongestOkStreak = [...tipperInsights].sort((a, b) => b.longestOkStreak - a.longestOkStreak)
   const sortedByLongestNokStreak = [...tipperInsights].sort((a, b) => b.longestNokStreak - a.longestNokStreak)
+  const todayLabel = new Intl.DateTimeFormat('sk-SK', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(new Date())
 
   const topTicketWinChartData = topTicketWins.map((ticket, index) => ({
     ...ticket,
@@ -328,8 +347,8 @@ export function StatisticsCharts({
           <RankingCard
             title="Úspešnosť podľa tipéra"
             subtitle={
-              weekLabels.length > 1
-                ? `Zoradené od najlepšieho výsledku • trend ${weekLabels[0]} až ${weekLabels[weekLabels.length - 1]}`
+              weekLabels.length > 0
+                ? `Zoradené od najlepšieho výsledku • trend od ${weekLabels[0]} po dnes (${todayLabel})`
                 : 'Zoradené od najlepšieho výsledku'
             }
             barClassName="bg-gradient-to-r from-emerald-500 to-teal-500"
