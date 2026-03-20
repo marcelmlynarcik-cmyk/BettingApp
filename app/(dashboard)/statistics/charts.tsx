@@ -33,6 +33,8 @@ type TipperInsight = {
   trend8w: number[]
   longestOkStreak: number
   longestNokStreak: number
+  longestOkStreakPeriod: { start: string; end: string } | null
+  longestNokStreakPeriod: { start: string; end: string } | null
   bestSport: { name: string; yield: number; tips: number } | null
   bestLeague: { name: string; yield: number; tips: number } | null
 }
@@ -121,6 +123,7 @@ type RankingItem = {
   value: number
   valueLabel: string
   sparkline?: number[]
+  contextLabel?: string
 }
 
 function rankBadgeClass(index: number) {
@@ -141,6 +144,14 @@ function formatDate(value: string | null) {
     month: '2-digit',
     year: 'numeric',
   }).format(new Date(value))
+}
+
+function formatStreakPeriod(period: { start: string; end: string } | null) {
+  if (!period?.start || !period?.end) return null
+  const start = formatDate(period.start)
+  const end = formatDate(period.end)
+  if (period.start === period.end) return `Obdobie: ${start}`
+  return `Obdobie: ${start} - ${end}`
 }
 
 function DashboardCard({
@@ -264,6 +275,9 @@ function RankingCard({
                         {item.valueLabel}
                       </span>
                     </div>
+                    {item.contextLabel && (
+                      <p className="mt-0.5 truncate text-[11px] font-medium text-muted-foreground">{item.contextLabel}</p>
+                    )}
 
                     {item.sparkline && (
                       <div className="mt-1.5">
@@ -356,6 +370,7 @@ export function StatisticsCharts({
   const sortedByCorrectTips = [...tipperInsights].sort((a, b) => b.totalCorrect - a.totalCorrect)
   const sortedByLongestOkStreak = [...tipperInsights].sort((a, b) => b.longestOkStreak - a.longestOkStreak)
   const sortedByLongestNokStreak = [...tipperInsights].sort((a, b) => b.longestNokStreak - a.longestNokStreak)
+  const chartSurfaceClass = 'rounded-xl border border-border/70 bg-gradient-to-r from-background to-muted/20 p-2 shadow-sm'
   const todayLabel = new Intl.DateTimeFormat('sk-SK', {
     day: '2-digit',
     month: '2-digit',
@@ -442,6 +457,7 @@ export function StatisticsCharts({
               name: user.name,
               value: user.longestOkStreak,
               valueLabel: String(user.longestOkStreak),
+              contextLabel: formatStreakPeriod(user.longestOkStreakPeriod),
             }))}
           />
 
@@ -455,6 +471,7 @@ export function StatisticsCharts({
               name: user.name,
               value: user.longestNokStreak,
               valueLabel: String(user.longestNokStreak),
+              contextLabel: formatStreakPeriod(user.longestNokStreakPeriod),
             }))}
           />
         </div>
@@ -469,7 +486,7 @@ export function StatisticsCharts({
             title="Mesačný zisk / strata"
             subtitle="Výplaty mínus vklady na uzavretých tiketoch"
           >
-            <div className="h-60">
+            <div className={cn('h-60', chartSurfaceClass)}>
               {monthlyBettingStats.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={monthlyBettingStats} margin={{ top: 8, right: 8, left: 0, bottom: 6 }}>
@@ -497,7 +514,7 @@ export function StatisticsCharts({
             title="Kumulatívny zisk"
             subtitle="Priebežný vývoj profitabilnosti tipovania"
           >
-            <div className="h-60">
+            <div className={cn('h-60', chartSurfaceClass)}>
               {monthlyBettingStats.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={monthlyBettingStats} margin={{ top: 8, right: 8, left: 0, bottom: 6 }}>
@@ -526,7 +543,7 @@ export function StatisticsCharts({
             title="Mesačný cashflow"
             subtitle="Súčet transakcií (vklady, výbery, stávky, payouty)"
           >
-            <div className="h-60">
+            <div className={cn('h-60', chartSurfaceClass)}>
               {monthlyCashflowStats.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={monthlyCashflowStats} margin={{ top: 8, right: 8, left: 0, bottom: 6 }}>
@@ -551,7 +568,7 @@ export function StatisticsCharts({
             title="Kumulatívny cashflow"
             subtitle="Priebežný vývoj stavu účtu podľa transakcií"
           >
-            <div className="h-60">
+            <div className={cn('h-60', chartSurfaceClass)}>
               {monthlyCashflowStats.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={monthlyCashflowStats} margin={{ top: 8, right: 8, left: 0, bottom: 6 }}>
@@ -580,7 +597,7 @@ export function StatisticsCharts({
             title="Výkon podľa dňa v týždni"
             subtitle="Kombinácia profitu a úspešnosti podľa dňa"
           >
-            <div className="h-64">
+            <div className={cn('h-64', chartSurfaceClass)}>
               {weekdayPerformance.some((day) => day.tickets > 0) ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={weekdayPerformance} margin={{ top: 8, right: 8, left: 0, bottom: 6 }}>
@@ -613,7 +630,7 @@ export function StatisticsCharts({
             title="Výkon podľa kurzových pásiem"
             subtitle="Porovnanie win rate a yield naprieč kurzami jednotlivých tipov"
           >
-            <div className="h-64">
+            <div className={cn('h-64', chartSurfaceClass)}>
               {oddsRangePerformance.some((bucket) => bucket.tickets > 0) ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={oddsRangePerformance} margin={{ top: 8, right: 8, left: 0, bottom: 6 }}>
@@ -732,7 +749,7 @@ export function StatisticsCharts({
         subtitle="Najvyšší čistý zisk na výherných tiketoch v období"
         className="lg:col-span-2"
       >
-        <div className="h-64">
+        <div className={cn('h-64', chartSurfaceClass)}>
           {topTicketWinChartData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={topTicketWinChartData} layout="vertical" margin={{ top: 8, right: 24, left: 8, bottom: 8 }}>

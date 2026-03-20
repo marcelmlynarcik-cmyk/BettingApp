@@ -94,6 +94,11 @@ type StreakStats = {
   maxLoss: number
 }
 
+type StreakPeriod = {
+  start: string
+  end: string
+}
+
 type StatisticsData = {
   error?: string
   asOf: string
@@ -140,6 +145,8 @@ type StatisticsData = {
     trend8w: number[]
     longestOkStreak: number
     longestNokStreak: number
+    longestOkStreakPeriod: StreakPeriod | null
+    longestNokStreakPeriod: StreakPeriod | null
     bestSport: { name: string; yield: number; tips: number } | null
     bestLeague: { name: string; yield: number; tips: number } | null
   }>
@@ -770,19 +777,39 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
         let longestNokStreak = 0
         let currentOkStreak = 0
         let currentNokStreak = 0
+        let currentOkStart: string | null = null
+        let currentNokStart: string | null = null
+        let longestOkStreakPeriod: StreakPeriod | null = null
+        let longestNokStreakPeriod: StreakPeriod | null = null
 
         for (const prediction of sortedResolvedPreds) {
           const result = normalizeResult(prediction.result)
+          const predictionDate = getPredictionDate(prediction, ticketById)
+
           if (result === 'OK') {
+            if (currentOkStreak === 0) currentOkStart = predictionDate
             currentOkStreak += 1
             currentNokStreak = 0
+            currentNokStart = null
           } else {
+            if (currentNokStreak === 0) currentNokStart = predictionDate
             currentNokStreak += 1
             currentOkStreak = 0
+            currentOkStart = null
           }
 
-          if (currentOkStreak > longestOkStreak) longestOkStreak = currentOkStreak
-          if (currentNokStreak > longestNokStreak) longestNokStreak = currentNokStreak
+          if (currentOkStreak > longestOkStreak) {
+            longestOkStreak = currentOkStreak
+            longestOkStreakPeriod = currentOkStart && predictionDate
+              ? { start: currentOkStart, end: predictionDate }
+              : null
+          }
+          if (currentNokStreak > longestNokStreak) {
+            longestNokStreak = currentNokStreak
+            longestNokStreakPeriod = currentNokStart && predictionDate
+              ? { start: currentNokStart, end: predictionDate }
+              : null
+          }
         }
 
         for (const prediction of userPreds) {
@@ -846,6 +873,8 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
           trend8w,
           longestOkStreak,
           longestNokStreak,
+          longestOkStreakPeriod,
+          longestNokStreakPeriod,
           bestSport,
           bestLeague,
         }
