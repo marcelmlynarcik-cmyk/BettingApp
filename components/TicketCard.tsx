@@ -77,12 +77,26 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
     }
   }
 
+  const getCardToneClass = (status: Ticket['status']) => {
+    switch (status) {
+      case 'win':
+        return 'border-emerald-300/45 bg-gradient-to-br from-emerald-500/[0.08] via-card to-card hover:from-emerald-500/[0.12]'
+      case 'loss':
+        return 'border-rose-300/45 bg-gradient-to-br from-rose-500/[0.08] via-card to-card hover:from-rose-500/[0.12]'
+      case 'pending':
+        return 'border-amber-300/45 bg-gradient-to-br from-amber-500/[0.08] via-card to-card hover:from-amber-500/[0.12]'
+    }
+  }
+
   const externalTicketHref =
     ticket.ticket_url && /^https?:\/\//i.test(ticket.ticket_url) ? ticket.ticket_url : ticket.ticket_url ? `https://${ticket.ticket_url}` : null
 
   return (
     <div
-      className="group rounded-xl border border-border bg-card p-3 shadow-sm transition-all hover:bg-secondary/40"
+      className={cn(
+        'group rounded-xl border p-3 shadow-sm transition-all',
+        getCardToneClass(ticket.status),
+      )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">

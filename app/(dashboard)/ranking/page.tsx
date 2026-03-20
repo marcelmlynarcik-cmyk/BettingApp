@@ -36,6 +36,7 @@ type MonthlyPerformanceWinner = {
   monthLabel: string
   userName: string
   okTips: number
+  yield: number
   avgOdds: number
 }
 
@@ -198,6 +199,9 @@ async function getRankingData() {
 
     const key = `${toMonthKey(dateValue)}__${pred.user_id}`
     const odds = parseOdds(pred.odds)
+    const ticketStake = pred.ticket_id ? Number(ticketById.get(pred.ticket_id)?.stake || 0) : 0
+    const legs = pred.ticket_id ? predictionCountByTicket[pred.ticket_id] || 0 : 0
+    const stakeShare = legs > 0 ? ticketStake / legs : 0
 
     if (!acc[key]) {
       acc[key] = {
@@ -206,21 +210,27 @@ async function getRankingData() {
         okTips: 0,
         oddsSum: 0,
         oddsCount: 0,
+        totalStake: 0,
+        totalWins: 0,
       }
     }
 
     acc[key].oddsSum += odds
     acc[key].oddsCount += 1
+    acc[key].totalStake += stakeShare
 
     if (normalizeResult(pred.result) === 'OK') {
       acc[key].okTips += 1
+      acc[key].totalWins += odds * stakeShare
     }
 
     return acc
-  }, {} as Record<string, { monthKey: string; userId: string; okTips: number; oddsSum: number; oddsCount: number }>)
+  }, {} as Record<string, { monthKey: string; userId: string; okTips: number; oddsSum: number; oddsCount: number; totalStake: number; totalWins: number }>)
 
   const monthlyWinners = Object.values(monthlyByUser).reduce((acc, entry) => {
     const avgOdds = entry.oddsCount > 0 ? entry.oddsSum / entry.oddsCount : 0
+    const netProfit = entry.totalWins - entry.totalStake
+    const yieldValue = entry.totalStake > 0 ? (netProfit / entry.totalStake) * 100 : 0
     const userName = safeUsers.find((u) => u.id === entry.userId)?.name || 'Neznámy tipér'
 
     const candidate: MonthlyPerformanceWinner = {
@@ -228,6 +238,7 @@ async function getRankingData() {
       monthLabel: monthLabel(entry.monthKey),
       userName,
       okTips: entry.okTips,
+      yield: yieldValue,
       avgOdds,
     }
 
@@ -239,7 +250,8 @@ async function getRankingData() {
     const current = acc[entry.monthKey]
     if (
       candidate.okTips > current.okTips ||
-      (candidate.okTips === current.okTips && candidate.avgOdds > current.avgOdds)
+      (candidate.okTips === current.okTips && candidate.yield > current.yield) ||
+      (candidate.okTips === current.okTips && candidate.yield === current.yield && candidate.avgOdds > current.avgOdds)
     ) {
       acc[entry.monthKey] = candidate
     }
@@ -420,7 +432,7 @@ export default async function RankingPage() {
         <section className="rounded-2xl border border-border/70 bg-gradient-to-b from-card to-muted/10 p-4 shadow-sm sm:p-5">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-base font-semibold text-card-foreground">Sieň slávy</h3>
-            <p className="text-xs text-muted-foreground">Mesiac - výkon</p>
+            <p className="text-xs text-muted-foreground">Mesiac - OK tipy, potom yield</p>
           </div>
           <div className="space-y-2">
             {monthlyPerformanceHall.map((row) => (
@@ -436,7 +448,7 @@ export default async function RankingPage() {
                 <div className="mt-1.5 inline-flex items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-2.5 py-1.5 text-xs text-muted-foreground">
                   <span>OK tipy: <span className="font-semibold text-card-foreground">{row.okTips}</span></span>
                   <span className="text-border">•</span>
-                  <span>Ø kurz: <span className="font-semibold text-card-foreground">{row.avgOdds.toFixed(2)}</span></span>
+                  <span>Yield: <span className={cn('font-semibold', row.yield >= 0 ? 'text-emerald-600' : 'text-rose-600')}>{formatYield(row.yield)}</span></span>
                 </div>
               </div>
             ))}
