@@ -123,6 +123,13 @@ type RankingItem = {
   sparkline?: number[]
 }
 
+function rankBadgeClass(index: number) {
+  if (index === 0) return 'border-amber-300/80 bg-amber-100 text-amber-700'
+  if (index === 1) return 'border-slate-300/80 bg-slate-100 text-slate-700'
+  if (index === 2) return 'border-orange-300/80 bg-orange-100 text-orange-700'
+  return 'border-border/70 bg-muted/60 text-muted-foreground'
+}
+
 function formatCurrency(value: number) {
   return `${value >= 0 ? '+' : ''}${value.toLocaleString('sk-SK', { maximumFractionDigits: 0 })} Kč`
 }
@@ -228,33 +235,57 @@ function RankingCard({
       {items.length === 0 ? (
         <EmptySection text={emptyText} />
       ) : (
-        <div className="space-y-1.5">
-          {items.map((item, index) => (
-            <div
-              key={item.id}
-              className={cn(
-                'grid grid-cols-[2rem,minmax(0,1fr),4.2rem] items-center gap-2 rounded-lg px-2 py-2 transition-colors',
-                index === 0 ? 'bg-emerald-50/70 hover:bg-emerald-50' : 'hover:bg-muted/50',
-              )}
-            >
-              <p className="text-xs font-semibold tabular-nums text-muted-foreground">#{index + 1}</p>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-foreground">{item.name}</p>
-                {item.sparkline && (
-                  <div className="mt-1">
-                    <Sparkline values={item.sparkline} />
-                  </div>
+        <div className="space-y-2">
+          {items.map((item, index) => {
+            const width = Math.max(0, Math.min(100, (item.value / maxValue) * 100))
+
+            return (
+              <div
+                key={item.id}
+                className={cn(
+                  'rounded-xl border border-border/70 bg-gradient-to-r from-background to-muted/20 px-3 py-2.5 shadow-sm transition-colors hover:border-border hover:bg-muted/20',
+                  index === 0 && 'border-emerald-300/70 from-emerald-50/80 to-teal-50/60',
                 )}
-                <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted/70">
+              >
+                <div className="grid grid-cols-[2.3rem,minmax(0,1fr),auto] items-start gap-2.5">
                   <div
-                    className={cn('h-full rounded-full transition-[width] duration-500 ease-out', barClassName)}
-                    style={{ width: `${Math.max(0, Math.min(100, (item.value / maxValue) * 100))}%` }}
-                  />
+                    className={cn(
+                      'flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold tabular-nums',
+                      rankBadgeClass(index),
+                    )}
+                  >
+                    #{index + 1}
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="truncate text-sm font-semibold text-foreground">{item.name}</p>
+                      <span className="rounded-full border border-border/70 bg-background/85 px-2 py-0.5 text-xs font-semibold tabular-nums text-foreground">
+                        {item.valueLabel}
+                      </span>
+                    </div>
+
+                    {item.sparkline && (
+                      <div className="mt-1.5">
+                        <Sparkline values={item.sparkline} />
+                      </div>
+                    )}
+
+                    <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-muted/70">
+                      <div
+                        className={cn('relative h-full rounded-full transition-[width] duration-700 ease-out', barClassName)}
+                        style={{ width: `${width}%` }}
+                      >
+                        <span className="absolute inset-0 bg-[linear-gradient(110deg,transparent_0%,rgba(255,255,255,0.28)_45%,transparent_100%)] opacity-80" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="pt-1 text-xs font-medium tabular-nums text-muted-foreground">{width.toFixed(0)}%</p>
                 </div>
               </div>
-              <p className="text-right text-sm font-semibold tabular-nums text-foreground">{item.valueLabel}</p>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </DashboardCard>
