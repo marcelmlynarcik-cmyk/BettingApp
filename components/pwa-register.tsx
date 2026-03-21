@@ -14,10 +14,11 @@ export function PwaRegister() {
         await navigator.serviceWorker.register('/sw.js')
         if ('Notification' in window && Notification.permission === 'granted') {
           try {
-            await registerAndSyncPushSubscription()
-          } catch (syncError) {
-            console.warn('Push subscription sync failed, trying refresh:', syncError)
+            // Force renewal to avoid stale subscriptions after VAPID/endpoint drift.
             await refreshPushSubscription()
+          } catch (refreshError) {
+            console.warn('Push subscription refresh failed, trying sync:', refreshError)
+            await registerAndSyncPushSubscription()
           }
         }
       } catch (error) {

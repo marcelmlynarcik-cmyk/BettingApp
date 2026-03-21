@@ -176,10 +176,16 @@ export async function refreshPushSubscription() {
 
   let subscription = await registration.pushManager.getSubscription()
   if (!subscription) {
-    subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
-    })
+    try {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+      })
+    } catch {
+      // If subscribe fails due to an internal browser state race, retry by reading existing.
+      subscription = await registration.pushManager.getSubscription()
+      if (!subscription) throw new Error('Unable to create push subscription on this device')
+    }
   }
 
   await syncSubscription(subscription)
