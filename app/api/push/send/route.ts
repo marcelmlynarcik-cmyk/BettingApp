@@ -53,7 +53,7 @@ export async function POST(request: Request) {
             ? Number((error as { statusCode?: number }).statusCode)
             : 0
 
-        if (statusCode === 404 || statusCode === 410) {
+        if (statusCode === 400 || statusCode === 401 || statusCode === 403 || statusCode === 404 || statusCode === 410) {
           staleEndpoints.push(row.endpoint)
         } else {
           console.error('Push send failed for subscription:', row.endpoint, error)
@@ -65,7 +65,12 @@ export async function POST(request: Request) {
       await supabase.from('push_subscriptions').delete().in('endpoint', staleEndpoints)
     }
 
-    return NextResponse.json({ ok: true, sent: sentCount, stale: staleEndpoints.length })
+    return NextResponse.json({
+      ok: true,
+      total: (subscriptions || []).length,
+      sent: sentCount,
+      stale: staleEndpoints.length,
+    })
   } catch (error) {
     console.error('Push send API error:', error)
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 })

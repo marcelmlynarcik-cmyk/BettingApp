@@ -13,8 +13,50 @@ function urlBase64ToUint8Array(base64String: string) {
   return outputArray
 }
 
+function uint8ArrayToBase64Url(value: Uint8Array) {
+  let binary = ''
+  for (let i = 0; i < value.length; i += 1) {
+    binary += String.fromCharCode(value[i])
+  }
+  return window
+    .btoa(binary)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '')
+}
+
+function normalizeSubscriptionPayload(subscription: PushSubscription) {
+  const raw = typeof subscription.toJSON === 'function' ? subscription.toJSON() : {}
+  let p256dh = (raw as { keys?: { p256dh?: string } })?.keys?.p256dh
+  let auth = (raw as { keys?: { auth?: string } })?.keys?.auth
+
+  if (!p256dh || !auth) {
+    const p256dhKey = subscription.getKey?.('p256dh')
+    const authKey = subscription.getKey?.('auth')
+
+    if (p256dhKey) {
+      p256dh = uint8ArrayToBase64Url(new Uint8Array(p256dhKey))
+    }
+    if (authKey) {
+      auth = uint8ArrayToBase64Url(new Uint8Array(authKey))
+    }
+  }
+
+  if (!subscription.endpoint || !p256dh || !auth) {
+    throw new Error('Push subscription is missing endpoint or keys')
+  }
+
+  return {
+    endpoint: subscription.endpoint,
+    keys: {
+      p256dh,
+      auth,
+    },
+  }
+}
+
 async function syncSubscription(subscription: PushSubscription) {
-  const payload = typeof subscription.toJSON === 'function' ? subscription.toJSON() : subscription
+  const payload = normalizeSubscriptionPayload(subscription)
   const response = await fetch('/api/push/subscribe', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
