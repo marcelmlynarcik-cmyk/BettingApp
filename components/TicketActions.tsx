@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { notifyError, notifySuccess } from '@/lib/notifications'
+import { notifyError, notifySuccess, triggerPushNotification } from '@/lib/notifications'
 import { Edit2, Loader2, Trash2, X } from 'lucide-react'
 import type { League, Prediction, Sport, Ticket, User } from '@/lib/types'
 
@@ -34,6 +34,7 @@ export function TicketActions({ ticketId, description }: TicketActionsProps) {
     ticket_url: '',
   })
   const [predictionForms, setPredictionForms] = useState<EditablePrediction[]>([])
+  const [originalTicketStatus, setOriginalTicketStatus] = useState<Ticket['status'] | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
@@ -97,7 +98,7 @@ export function TicketActions({ ticketId, description }: TicketActionsProps) {
       ] = await Promise.all([
         supabase
           .from('tickets')
-          .select('date, stake, description, ticket_url')
+          .select('date, stake, description, ticket_url, status')
           .eq('id', ticketId)
           .single(),
         supabase
@@ -124,6 +125,7 @@ export function TicketActions({ ticketId, description }: TicketActionsProps) {
         description: ticket.description || '',
         ticket_url: ticket.ticket_url || '',
       })
+      setOriginalTicketStatus(ticket.status as Ticket['status'])
       setPredictionForms(
         (predictions || []).map((prediction) => ({
           id: prediction.id,
@@ -271,6 +273,16 @@ export function TicketActions({ ticketId, description }: TicketActionsProps) {
       }
 
       notifySuccess('Tiket bol upravený', ticketForm.description || 'Bez popisu')
+
+      if (originalTicketStatus !== 'win' && status === 'win') {
+        await triggerPushNotification({
+          title: 'Výherný tiket',
+          body: `${ticketForm.description || 'Tiket'} je vyhodnotený ako výherný`,
+          url: `/tickets/${ticketId}`,
+          tag: `ticket-win-${ticketId}`,
+        })
+      }
+
       setIsEditOpen(false)
       router.refresh()
     } catch (error) {

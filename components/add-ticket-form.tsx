@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { User, Sport, League } from '@/lib/types'
-import { notifyError, notifySuccess } from '@/lib/notifications'
+import { notifyError, notifySuccess, triggerPushNotification } from '@/lib/notifications'
 import {
   buildProbabilityIndex,
   estimatePredictionProbability,
@@ -512,6 +512,12 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
         notifyError('Tiket vytvorený, ale bez finančného záznamu')
       } else {
         notifySuccess('Tiket bol vytvorený', ticketDescription || 'Nový tiket')
+        await triggerPushNotification({
+          title: 'Podaný nový tiket',
+          body: ticketDescription || 'Nový tiket bol úspešne podaný',
+          url: '/tickets',
+          tag: 'ticket-submitted',
+        })
       }
 
       setIsSubmitting(false)
@@ -567,6 +573,12 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
       notifyError(`Podaných ${successCount} tiketov, ale ${financeWarningCount} bez finančného záznamu`)
     } else {
       notifySuccess('Tikety podané', `${successCount} z ${multiTickets.length}`)
+      await triggerPushNotification({
+        title: 'Tikety boli podané',
+        body: `Úspešne podaných ${successCount} tiketov`,
+        url: '/tickets',
+        tag: 'ticket-submitted-batch',
+      })
     }
 
     router.refresh()

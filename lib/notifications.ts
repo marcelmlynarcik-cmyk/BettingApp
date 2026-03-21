@@ -25,3 +25,24 @@ export function notifyError(title: string, description?: string) {
     description,
   })
 }
+
+type PushEventPayload = {
+  title: string
+  body?: string
+  url?: string
+  tag?: string
+}
+
+export async function triggerPushNotification(payload: PushEventPayload) {
+  try {
+    await fetch('/api/push/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    })
+  } catch (error) {
+    console.error('Push trigger failed:', error)
+  }
+}

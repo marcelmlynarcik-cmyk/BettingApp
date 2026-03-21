@@ -79,3 +79,46 @@ self.addEventListener('fetch', (event) => {
     })
   )
 });
+
+self.addEventListener('push', (event) => {
+  if (!event.data) return
+
+  let payload = {}
+  try {
+    payload = event.data.json()
+  } catch {
+    payload = { title: 'BetTracker', body: event.data.text() }
+  }
+
+  const title = payload.title || 'BetTracker'
+  const options = {
+    body: payload.body || '',
+    icon: payload.icon || '/icons/icon-192x192.png',
+    badge: payload.badge || '/icons/icon-192x192.png',
+    tag: payload.tag || 'bettracker-notification',
+    data: {
+      url: payload.url || '/tickets',
+    },
+  }
+
+  event.waitUntil(self.registration.showNotification(title, options))
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const targetUrl = event.notification?.data?.url || '/tickets'
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url.includes(targetUrl) && 'focus' in client) {
+          return client.focus()
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(targetUrl)
+      }
+      return Promise.resolve()
+    }),
+  )
+})
