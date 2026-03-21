@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { notifyError, notifySuccess, triggerPushNotification } from '@/lib/notifications'
+import { evaluateAndTriggerStatsAlerts } from '@/lib/stats-alerts'
 import { PredictionRow } from './PredictionRow'
 import { CheckCheck } from 'lucide-react'
 import type { Prediction, User, Sport, League, Ticket } from '@/lib/types'
@@ -101,6 +102,7 @@ export function PredictionResolver({ initialPredictions, ticket }: PredictionRes
         `${userName} • ${sportName}/${leagueName} • kurz ${oddsValue.toFixed(2)} • ${result} • ${ticketStateLabel}`,
         `/tickets/${ticket.id}`,
       )
+      await evaluateAndTriggerStatsAlerts(supabase, `/tickets/${ticket.id}`)
     } catch (error) {
       console.error('Chyba pri aktualizácii statusu:', error)
       setPredictions(prevPredictions)
@@ -159,6 +161,7 @@ export function PredictionResolver({ initialPredictions, ticket }: PredictionRes
 
       router.refresh()
       notifySuccess('Tiket označený ako výherný', ticket.description || 'Všetko OK', `/tickets/${ticket.id}`)
+      await evaluateAndTriggerStatsAlerts(supabase, `/tickets/${ticket.id}`)
     } catch (error) {
       console.error('Chyba pri hromadnom vyhodnotení:', error)
       setPredictions(prevPredictions)

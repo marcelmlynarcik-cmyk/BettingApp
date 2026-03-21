@@ -6,6 +6,8 @@ import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 import type { FinanceTransaction } from '@/lib/types'
+import { notifyError, notifySuccess } from '@/lib/notifications'
+import { evaluateAndTriggerStatsAlerts } from '@/lib/stats-alerts'
 import { Plus, ArrowUpCircle, ArrowDownCircle, X } from 'lucide-react'
 
 interface FinanceClientProps {
@@ -45,7 +47,17 @@ export function FinanceClient({ transactions }: FinanceClientProps) {
 
     if (error) {
       console.error('Error creating transaction:', error)
+      notifyError('Transakciu sa nepodarilo pridať')
+      setIsSubmitting(false)
+      return
     }
+
+    notifySuccess(
+      type === 'deposit' ? 'Vklad pridaný' : 'Výber pridaný',
+      `${type === 'deposit' ? '+' : '-'}${Math.abs(finalAmount).toFixed(0)} Kč • ${date}${description ? ` • ${description}` : ''}`,
+      '/finance',
+    )
+    await evaluateAndTriggerStatsAlerts(supabase, '/finance')
 
     setIsSubmitting(false)
     setShowAddForm(false)

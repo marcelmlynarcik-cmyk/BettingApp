@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { notifyError, notifySuccess, triggerPushNotification } from '@/lib/notifications'
+import { evaluateAndTriggerStatsAlerts } from '@/lib/stats-alerts'
 import { Edit2, Loader2, Trash2, X } from 'lucide-react'
 import type { League, Prediction, Sport, Ticket, User } from '@/lib/types'
 
@@ -288,6 +289,7 @@ export function TicketActions({ ticketId, description }: TicketActionsProps) {
         })
       }
 
+      await evaluateAndTriggerStatsAlerts(supabase, detailUrl)
       setIsEditOpen(false)
       router.refresh()
     } catch (error) {
@@ -356,6 +358,7 @@ export function TicketActions({ ticketId, description }: TicketActionsProps) {
       router.push('/tickets')
       router.refresh()
       notifySuccess('Tiket bol zmazaný', description || 'Bez popisu')
+      await evaluateAndTriggerStatsAlerts(supabase, '/tickets')
     } catch (error) {
       console.error('Chyba pri mazaní tiketu:', error)
       notifyError('Tiket sa nepodarilo zmazať')
