@@ -2,12 +2,44 @@
 
 import { toast } from 'sonner'
 
+async function showBrowserNotification(title: string, description?: string, url?: string) {
+  if (typeof window === 'undefined' || !('Notification' in window)) return
+  if (Notification.permission !== 'granted') return
+
+  try {
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.ready
+      await registration.showNotification(title, {
+        body: description,
+        icon: '/icons/icon-192x192.png',
+        badge: '/icons/icon-192x192.png',
+        data: url ? { url } : undefined,
+        tag: 'bettracker-local',
+      })
+      return
+    }
+
+    const notification = new Notification(title, {
+      body: description,
+      data: url ? { url } : undefined,
+    })
+
+    if (url) {
+      notification.onclick = () => {
+        window.focus()
+        window.location.href = url
+      }
+    }
+  } catch {
+    // Ignore notification API failures and keep toast-only feedback.
+  }
+}
+
 export function notifySuccess(title: string, description?: string, url?: string) {
   toast.success(title, {
     description,
   })
-  // Keep only toast feedback here; broadcast notifications go via /api/push/send.
-  void url
+  void showBrowserNotification(title, description, url)
 }
 
 export function notifyError(title: string, description?: string) {
