@@ -70,11 +70,13 @@ export function PushNotificationBanner() {
     }
   }
 
+  if (permission === 'granted') return null
+
   return (
     <section className="mb-4 rounded-xl border border-border bg-card p-3 md:p-4">
       <p className="text-sm font-semibold text-card-foreground">Push notifikácie (iOS + Android)</p>
       <p className="mt-1 text-xs text-muted-foreground">
-        Dostaneš upozornenie na podaný tiket aj na výherný tiket.
+        {permission === 'default' ? 'Zapni notifikácie pre podané a výherné tikety.' : 'Notifikácie nie sú aktívne.'}
       </p>
 
       {permission === 'default' ? (
