@@ -663,7 +663,8 @@ export default async function RankingPage() {
   const archivedPerformanceHall = monthlyPerformanceHall.slice(6)
   const recentOddsHall = monthlyOddsHall.slice(0, 6)
   const archivedOddsHall = monthlyOddsHall.slice(6)
-  const latestMilestones = milestoneEvents.slice(0, 12)
+  const latestMilestones = milestoneEvents.slice(0, 5)
+  const olderMilestones = milestoneEvents.slice(5)
 
   return (
     <div className="space-y-7">
@@ -737,9 +738,7 @@ export default async function RankingPage() {
 
                 <div className="rounded-xl border border-border/60 bg-muted/25 p-2.5">
                   <div className="mb-1.5 flex items-center justify-between text-xs">
-                    <span className="font-medium text-card-foreground">
-                      Úspešnosť: {user.hitRate.toFixed(1)}% ({user.resolvedTips} vyhodnotených)
-                    </span>
+                    <span className="font-medium text-card-foreground">Úspešnosť: {user.hitRate.toFixed(1)}%</span>
                     <span className="text-muted-foreground">
                       {user.resolvedTips < HIT_RATE_MIN_SAMPLE
                         ? `unlock po ${HIT_RATE_MIN_SAMPLE}`
@@ -872,7 +871,7 @@ export default async function RankingPage() {
       </section>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <section className="rounded-2xl border border-border/70 bg-gradient-to-b from-card to-muted/10 p-4 shadow-sm sm:p-5">
+        <section className="rounded-2xl border border-border/70 bg-gradient-to-br from-emerald-50/70 via-card to-sky-50/70 p-4 shadow-sm sm:p-5">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h3 className="flex items-center gap-2 text-base font-semibold text-card-foreground">
               <Milestone className="h-4.5 w-4.5 text-sky-600" />
@@ -903,24 +902,26 @@ export default async function RankingPage() {
                   </div>
                 ))}
 
-                <details className="rounded-xl border border-border/70 bg-card/70 p-3">
-                  <summary className="cursor-pointer list-none text-sm font-medium text-card-foreground">
-                    Zobraziť celkovú históriu milníkov ({milestoneEvents.length})
-                  </summary>
-                  <div className="mt-2 max-h-80 space-y-2 overflow-y-auto pr-1">
-                    {milestoneEvents.map((event, index) => (
-                      <div
-                        key={`${event.userId}-${event.metric}-${event.milestone}-${event.achievedAt}-full-${index}`}
-                        className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/25 px-2.5 py-2"
-                      >
-                        <p className="truncate text-xs text-card-foreground">
-                          <span className="font-semibold">{event.userName}</span> - {formatMilestoneEvent(event.metric, event.milestone)}
-                        </p>
-                        <p className="shrink-0 text-[11px] text-muted-foreground">{fullDateLabel(event.achievedAt)}</p>
-                      </div>
-                    ))}
-                  </div>
-                </details>
+                {olderMilestones.length > 0 ? (
+                  <details className="rounded-xl border border-border/70 bg-card/70 p-3">
+                    <summary className="cursor-pointer list-none text-sm font-medium text-card-foreground">
+                      Zobraziť staršie milníky ({olderMilestones.length})
+                    </summary>
+                    <div className="mt-2 max-h-80 space-y-2 overflow-y-auto pr-1">
+                      {olderMilestones.map((event, index) => (
+                        <div
+                          key={`${event.userId}-${event.metric}-${event.milestone}-${event.achievedAt}-full-${index}`}
+                          className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/25 px-2.5 py-2"
+                        >
+                          <p className="truncate text-xs text-card-foreground">
+                            <span className="font-semibold">{event.userName}</span> - {formatMilestoneEvent(event.metric, event.milestone)}
+                          </p>
+                          <p className="shrink-0 text-[11px] text-muted-foreground">{fullDateLabel(event.achievedAt)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                ) : null}
               </>
             )}
           </div>
@@ -940,8 +941,10 @@ export default async function RankingPage() {
               <div
                 key={user.userId}
                 className={cn(
-                  'rounded-xl border border-border/70 bg-card/70 px-3 py-3',
-                  index < 3 && 'border-amber-500/25 bg-amber-500/[0.06]',
+                  'rounded-xl border border-border/70 bg-white/75 px-3 py-3 backdrop-blur',
+                  index === 0 && 'border-amber-400/35 bg-amber-50/70',
+                  index === 1 && 'border-slate-400/30 bg-slate-50/70',
+                  index === 2 && 'border-orange-400/30 bg-orange-50/70',
                 )}
               >
                 <div className="mb-1.5 flex items-center justify-between gap-3">
@@ -955,6 +958,17 @@ export default async function RankingPage() {
                   <p>Ø kurz: <span className="font-semibold text-card-foreground">{user.avgOdds.toFixed(2)}</span></p>
                   <p>Zisk: <span className={cn('font-semibold', user.netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600')}>{formatCurrency(user.netProfit)}</span></p>
                 </div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted/70">
+                  <div
+                    className={cn(
+                      'h-full rounded-full',
+                      user.yield >= 0
+                        ? 'bg-gradient-to-r from-emerald-400 to-emerald-600'
+                        : 'bg-gradient-to-r from-rose-400 to-rose-600',
+                    )}
+                    style={{ width: `${Math.min(100, Math.max(8, Math.abs(user.yield) * 2.5))}%` }}
+                  />
+                </div>
               </div>
             ))}
           </div>
@@ -962,18 +976,31 @@ export default async function RankingPage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <section className="rounded-2xl border border-border/70 bg-gradient-to-b from-card to-muted/10 p-4 shadow-sm sm:p-5">
+        <section className="rounded-2xl border border-border/70 bg-gradient-to-br from-amber-50/70 via-card to-orange-50/70 p-4 shadow-sm sm:p-5">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-base font-semibold text-card-foreground">Sieň slávy (mesiace - výkon)</h3>
             <p className="text-xs text-muted-foreground">aktuálne 6 mesiacov</p>
           </div>
 
           <div className="grid gap-2 sm:grid-cols-2">
-            {recentPerformanceHall.map((row) => (
-              <div key={row.monthKey} className="rounded-xl border border-border/70 bg-card/70 p-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{row.monthLabel}</p>
-                <p className="mt-1 text-sm font-semibold text-card-foreground">{row.userName}</p>
-                <p className="mt-1 text-xs text-muted-foreground">OK {row.okTips} • Yield {formatYield(row.yield)}</p>
+            {recentPerformanceHall.map((row, index) => (
+              <div
+                key={row.monthKey}
+                className={cn(
+                  'rounded-xl border border-border/70 bg-white/75 p-3 backdrop-blur',
+                  index === 0 && 'border-amber-400/35 bg-amber-50/70',
+                )}
+              >
+                <div className="mb-1.5 flex items-center justify-between">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{row.monthLabel}</p>
+                  <span className="rounded-md border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">TOP</span>
+                </div>
+                <p className="text-sm font-semibold text-card-foreground">{row.userName}</p>
+                <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>OK {row.okTips}</span>
+                  <span>•</span>
+                  <span className={cn('font-semibold', row.yield >= 0 ? 'text-emerald-600' : 'text-rose-600')}>{formatYield(row.yield)}</span>
+                </div>
               </div>
             ))}
           </div>
