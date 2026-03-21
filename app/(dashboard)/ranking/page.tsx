@@ -1,10 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 import { cn } from '@/lib/utils'
 import {
-  Trophy,
+  ArrowRight,
+  Calendar,
+  Gauge,
   Medal,
-  Info,
+  Milestone,
+  Sparkles,
   Star,
+  Trophy,
 } from 'lucide-react'
 
 type UserRecord = { id: string; name: string }
@@ -56,6 +60,32 @@ type MonthlyOddsWinner = {
   context: string
 }
 
+type MilestoneMetric = 'tickets' | 'okTips'
+
+type MilestoneEvent = {
+  userId: string
+  userName: string
+  metric: MilestoneMetric
+  milestone: number
+  achievedAt: string
+}
+
+type UserMilestoneProgress = {
+  userId: string
+  userName: string
+  tickets: number
+  okTips: number
+  nextTicketMilestone: number | null
+  nextOkTipsMilestone: number | null
+  ticketProgressPct: number
+  okTipsProgressPct: number
+  reachedTicketMilestones: Array<{ value: number; achievedAt: string }>
+  reachedOkTipMilestones: Array<{ value: number; achievedAt: string }>
+}
+
+const TICKET_MILESTONES = [25, 50, 100, 200, 300, 500, 750, 1000]
+const OK_TIPS_MILESTONES = [25, 50, 100, 200, 300, 500, 750, 1000]
+
 function normalizeResult(value: unknown) {
   return String(value ?? '').trim().toUpperCase()
 }
@@ -93,12 +123,45 @@ function shortDateLabel(dateValue: string) {
   })
 }
 
+function fullDateLabel(dateValue: string) {
+  const d = new Date(dateValue)
+  return d.toLocaleDateString('sk-SK', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
+}
+
 function formatCurrency(value: number) {
   return `${value >= 0 ? '+' : ''}${value.toFixed(0)} Kč`
 }
 
 function formatYield(value: number) {
   return `${value >= 0 ? '+' : ''}${value.toFixed(1)} %`
+}
+
+function getMetricLabel(metric: MilestoneMetric) {
+  return metric === 'tickets' ? 'tiketov' : 'OK tipov'
+}
+
+function clampProgress(value: number) {
+  return Math.max(0, Math.min(100, value))
+}
+
+function getProgressToNext(current: number, milestones: number[]) {
+  const next = milestones.find((m) => current < m) ?? null
+  if (!next) {
+    return { next: null as number | null, pct: 100 }
+  }
+
+  const previous = [...milestones].reverse().find((m) => current >= m) ?? 0
+  const span = Math.max(1, next - previous)
+  const pct = ((current - previous) / span) * 100
+
+  return {
+    next,
+    pct: clampProgress(pct),
+  }
 }
 
 async function fetchAllRows<T>(getPage: (from: number, to: number) => unknown) {
@@ -142,6 +205,7 @@ async function getRankingData() {
   const safePredictions = predictions || []
 
   const ticketById = new Map<string, TicketRecord>(safeTickets.map((t) => [t.id, t]))
+
   const predictionCountByTicket = safePredictions.reduce((acc, pred) => {
     if (!pred.ticket_id) return acc
     acc[pred.ticket_id] = (acc[pred.ticket_id] || 0) + 1
@@ -314,166 +378,328 @@ async function getRankingData() {
     return acc
   }, {} as Record<string, MonthlyOddsWinner>)
 
+  const predictionsByUser = safePredictions.reduce((acc, pred) => {
+    if (!acc[pred.user_id]) acc[pred.user_id] = []
+    acc[pred.user_id].push(pred)
+    return acc
+  }, {} as Record<string, PredictionRecord[]>)
+
+  const milestoneEvents: MilestoneEvent[] = []
+  const milestoneProgressByUser = new Map<string, UserMilestoneProgress>()
+
+  for (const user of safeUsers) {
+    const userPreds = (predictionsByUser[user.id] || [])
+      .map((pred) => ({
+        pred,
+        dateValue: getPredictionDate(pred, ticketById),
+      }))
+      .filter((item): item is { pred: PredictionRecord; dateValue: string } => Boolean(item.dateValue))
+      .sort((a, b) => new Date(a.dateValue).getTime() - new Date(b.dateValue).getTime())
+
+    const seenTickets = new Set<string>()
+    const seenStandalonePredictions = new Set<string>()
+    let ticketCount = 0
+    let okTipsCount = 0
+
+    const ticketReached: Array<{ value: number; achievedAt: string }> = []
+    const okReached: Array<{ value: number; achievedAt: string }> = []
+
+    let ticketMilestoneIndex = 0
+    let okMilestoneIndex = 0
+
+    for (const { pred, dateValue } of userPreds) {
+      if (pred.ticket_id) {
+        if (!seenTickets.has(pred.ticket_id)) {
+          seenTickets.add(pred.ticket_id)
+          ticketCount += 1
+        }
+      } else if (!seenStandalonePredictions.has(pred.id)) {
+        seenStandalonePredictions.add(pred.id)
+        ticketCount += 1
+      }
+
+      while (ticketMilestoneIndex < TICKET_MILESTONES.length && ticketCount >= TICKET_MILESTONES[ticketMilestoneIndex]) {
+        const milestone = TICKET_MILESTONES[ticketMilestoneIndex]
+        ticketReached.push({ value: milestone, achievedAt: dateValue })
+        milestoneEvents.push({
+          userId: user.id,
+          userName: user.name,
+          metric: 'tickets',
+          milestone,
+          achievedAt: dateValue,
+        })
+        ticketMilestoneIndex += 1
+      }
+
+      if (normalizeResult(pred.result) === 'OK') {
+        okTipsCount += 1
+
+        while (okMilestoneIndex < OK_TIPS_MILESTONES.length && okTipsCount >= OK_TIPS_MILESTONES[okMilestoneIndex]) {
+          const milestone = OK_TIPS_MILESTONES[okMilestoneIndex]
+          okReached.push({ value: milestone, achievedAt: dateValue })
+          milestoneEvents.push({
+            userId: user.id,
+            userName: user.name,
+            metric: 'okTips',
+            milestone,
+            achievedAt: dateValue,
+          })
+          okMilestoneIndex += 1
+        }
+      }
+    }
+
+    const ticketProgress = getProgressToNext(ticketCount, TICKET_MILESTONES)
+    const okProgress = getProgressToNext(okTipsCount, OK_TIPS_MILESTONES)
+
+    milestoneProgressByUser.set(user.id, {
+      userId: user.id,
+      userName: user.name,
+      tickets: ticketCount,
+      okTips: okTipsCount,
+      nextTicketMilestone: ticketProgress.next,
+      nextOkTipsMilestone: okProgress.next,
+      ticketProgressPct: ticketProgress.pct,
+      okTipsProgressPct: okProgress.pct,
+      reachedTicketMilestones: ticketReached,
+      reachedOkTipMilestones: okReached,
+    })
+  }
+
+  const userMilestoneProgress = safeUsers
+    .map((user) => milestoneProgressByUser.get(user.id))
+    .filter((item): item is UserMilestoneProgress => Boolean(item))
+    .sort((a, b) => {
+      if (b.okTips !== a.okTips) return b.okTips - a.okTips
+      return b.tickets - a.tickets
+    })
+
+  milestoneEvents.sort((a, b) => {
+    const timeDiff = new Date(b.achievedAt).getTime() - new Date(a.achievedAt).getTime()
+    if (timeDiff !== 0) return timeDiff
+    return b.milestone - a.milestone
+  })
+
   return {
     userYieldStats: userYieldStats.sort((a, b) => b.yield - a.yield),
     monthlyPerformanceHall: Object.values(monthlyWinners).sort((a, b) => b.monthKey.localeCompare(a.monthKey)),
     top10Odds,
     monthlyOddsHall: Object.values(monthlyOddsWinners).sort((a, b) => b.monthKey.localeCompare(a.monthKey)),
+    userMilestoneProgress,
+    milestoneEvents,
   }
 }
 
 export default async function RankingPage() {
-  const { userYieldStats, monthlyPerformanceHall, top10Odds, monthlyOddsHall } = await getRankingData()
+  const {
+    userYieldStats,
+    monthlyPerformanceHall,
+    top10Odds,
+    monthlyOddsHall,
+    userMilestoneProgress,
+    milestoneEvents,
+  } = await getRankingData()
+
+  const recentPerformanceHall = monthlyPerformanceHall.slice(0, 6)
+  const archivedPerformanceHall = monthlyPerformanceHall.slice(6)
+  const recentOddsHall = monthlyOddsHall.slice(0, 6)
+  const archivedOddsHall = monthlyOddsHall.slice(6)
+  const latestMilestones = milestoneEvents.slice(0, 12)
 
   return (
     <div className="space-y-7">
-      <div>
-        <h1 className="text-3xl font-black tracking-tight text-black">Rebríček</h1>
-        <p className="mt-1 text-sm font-medium text-slate-600 md:text-base">
-          Analytický pohľad na výkon, rekordy a historické úspechy tipérov
-        </p>
+      <div className="relative overflow-hidden rounded-3xl border border-border/80 bg-gradient-to-br from-slate-100 via-amber-50 to-orange-100 p-5 shadow-sm md:p-6">
+        <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-amber-300/20 blur-2xl" />
+        <div className="absolute -bottom-12 left-16 h-44 w-44 rounded-full bg-orange-300/20 blur-2xl" />
+        <div className="relative">
+          <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/40 bg-white/60 px-3 py-1 text-xs font-semibold text-amber-700 backdrop-blur">
+            <Sparkles className="h-3.5 w-3.5" />
+            Sieň slávy
+          </div>
+          <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-900 md:text-4xl">Milníky, rekordy a forma tipérov</h1>
+          <p className="mt-2 max-w-2xl text-sm font-medium text-slate-700 md:text-base">
+            Jasný prehľad kto, kedy a aký míľnik dosiahol, čo je ďalší cieľ a ako ďaleko je od neho.
+          </p>
+        </div>
       </div>
 
       <section className="space-y-3.5">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight text-card-foreground md:text-xl">Výkonnosť tipérov (Yield)</h2>
-          <p className="text-xs text-muted-foreground md:text-sm">Yield je hlavná metrika výkonu každého tipéra</p>
+          <h2 className="text-lg font-semibold tracking-tight text-card-foreground md:text-xl">Profil tipérov a progres milníkov</h2>
+          <p className="text-xs text-muted-foreground md:text-sm">Ticket milestone = počet podaných tiketov, OK milestone = počet trafených tipov</p>
         </div>
 
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {userYieldStats.map((user, index) => (
+          {userMilestoneProgress.map((user, index) => (
             <article
               key={user.userId}
               className={cn(
-                'relative overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-b from-card to-muted/10 p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md md:p-5',
-                index === 0 && 'ring-1 ring-emerald-500/30',
+                'relative overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-b from-card via-card to-muted/15 p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md md:p-5',
+                index === 0 && 'ring-1 ring-amber-500/35',
               )}
             >
-              <div className={cn(
-                'absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r',
-                user.yield >= 0 ? 'from-emerald-400/80 to-emerald-600/80' : 'from-rose-400/80 to-rose-600/80',
-              )} />
-
-              <div className="mb-3 flex items-start justify-between">
-                <div className="flex items-center gap-2">
-                  {index === 0 ? (
-                    <Trophy className="h-5 w-5 text-amber-500" />
-                  ) : index === 1 ? (
-                    <Medal className="h-5 w-5 text-slate-400" />
-                  ) : index === 2 ? (
-                    <Medal className="h-5 w-5 text-orange-600" />
-                  ) : (
-                    <Medal className="h-5 w-5 text-slate-400" />
-                  )}
-                  <p className="text-base font-semibold tracking-tight text-card-foreground">{user.userName}</p>
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    {index === 0 ? (
+                      <Trophy className="h-5 w-5 text-amber-500" />
+                    ) : index === 1 ? (
+                      <Medal className="h-5 w-5 text-slate-500" />
+                    ) : index === 2 ? (
+                      <Medal className="h-5 w-5 text-orange-600" />
+                    ) : (
+                      <Milestone className="h-5 w-5 text-slate-500" />
+                    )}
+                    <p className="truncate text-base font-semibold tracking-tight text-card-foreground">{user.userName}</p>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">#{index + 1} podľa počtu OK tipov</p>
                 </div>
-                <div className={cn(
-                  'rounded-lg px-2.5 py-1',
-                  user.yield >= 0 ? 'bg-emerald-500/10' : 'bg-rose-500/10',
-                )}>
-                  <p className={cn('text-xl font-black tracking-tight', user.yield >= 0 ? 'text-emerald-600' : 'text-rose-600')}>
-                    {formatYield(user.yield)}
-                  </p>
+                <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-right">
+                  <p className="text-xs text-emerald-700">OK tipy</p>
+                  <p className="text-sm font-bold text-emerald-700">{user.okTips}</p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
-                <div className="rounded-xl border border-border/60 bg-muted/35 px-3 py-2">
-                  <p className="text-xs text-muted-foreground">OK tipy</p>
-                  <p className="font-semibold text-card-foreground">{user.okTips}</p>
+              <div className="space-y-3">
+                <div className="rounded-xl border border-border/60 bg-muted/25 p-2.5">
+                  <div className="mb-1.5 flex items-center justify-between text-xs">
+                    <span className="font-medium text-card-foreground">Tikety: {user.tickets}</span>
+                    <span className="text-muted-foreground">
+                      {user.nextTicketMilestone ? `ďalší ${user.nextTicketMilestone}` : 'max level'}
+                    </span>
+                  </div>
+                  <div className="h-2.5 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-sky-400 to-sky-600"
+                      style={{ width: `${user.ticketProgressPct}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="rounded-xl border border-border/60 bg-muted/35 px-3 py-2">
-                  <p className="text-xs text-muted-foreground">Ø kurz</p>
-                  <p className="font-semibold text-card-foreground">{user.avgOdds.toFixed(2)}</p>
+
+                <div className="rounded-xl border border-border/60 bg-muted/25 p-2.5">
+                  <div className="mb-1.5 flex items-center justify-between text-xs">
+                    <span className="font-medium text-card-foreground">OK tipy: {user.okTips}</span>
+                    <span className="text-muted-foreground">
+                      {user.nextOkTipsMilestone ? `ďalší ${user.nextOkTipsMilestone}` : 'max level'}
+                    </span>
+                  </div>
+                  <div className="h-2.5 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-600"
+                      style={{ width: `${user.okTipsProgressPct}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="rounded-xl border border-border/60 bg-muted/35 px-3 py-2">
-                  <p className="text-xs text-muted-foreground">Čistý zisk</p>
-                  <p className={cn('font-semibold', user.netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600')}>
-                    {formatCurrency(user.netProfit)}
-                  </p>
-                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-1.5">
+                {user.reachedTicketMilestones.slice(-2).map((item) => (
+                  <span
+                    key={`ticket-${user.userId}-${item.value}`}
+                    className="inline-flex items-center gap-1 rounded-full border border-sky-500/25 bg-sky-500/10 px-2 py-0.5 text-[11px] font-semibold text-sky-700"
+                  >
+                    <Calendar className="h-3 w-3" />
+                    {item.value} tiketov ({fullDateLabel(item.achievedAt)})
+                  </span>
+                ))}
+                {user.reachedOkTipMilestones.slice(-2).map((item) => (
+                  <span
+                    key={`ok-${user.userId}-${item.value}`}
+                    className="inline-flex items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-700"
+                  >
+                    <Calendar className="h-3 w-3" />
+                    {item.value} OK ({fullDateLabel(item.achievedAt)})
+                  </span>
+                ))}
               </div>
             </article>
           ))}
         </div>
       </section>
 
-      <section className="rounded-2xl border border-border/70 bg-gradient-to-b from-card to-muted/10 p-4 shadow-sm sm:p-5">
-        <details className="group">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Info className="h-4 w-4 text-sky-500" />
-              <h3 className="text-base font-semibold text-card-foreground">Čo je Yield?</h3>
-            </div>
-            <span className="text-xs font-medium text-muted-foreground group-open:hidden">Rozbaliť</span>
-            <span className="hidden text-xs font-medium text-muted-foreground group-open:inline">Skryť</span>
-          </summary>
-          <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-            <p>Yield je najdôležitejšia metrika, ktorá ukazuje, aký je tipér dlhodobo ziskový.</p>
-            <p>Vyjadruje priemerný čistý zisk v percentách na každú vsadenú korunu.</p>
-            <p>
-              Je to najspravodlivejší ukazovateľ, pretože hodnotí úspešnosť každého jednotlivého tipu,
-              bez ohľadu na výsledok spoločného tiketu.
-            </p>
-            <p>
-              <span className="font-medium text-card-foreground">Príklad:</span> Yield +8 % znamená,
-              že každá vsadená stovka vám z dlhodobého hľadiska vráti približne 108 Kč.
-            </p>
-            <p className="font-medium text-card-foreground">Výpočet:</p>
-            <p>1. Celkový vklad: sčítajú sa všetky vklady priradené k jednotlivým tipom.</p>
-            <p>2. Celkové výhry: sčítajú sa výhry z úspešných tipov (kurz × vklad na tip).</p>
-            <p>3. Čistý zisk: celkové výhry − celkový vklad.</p>
-            <p>4. Yield: (čistý zisk / celkový vklad) × 100.</p>
-          </div>
-        </details>
-      </section>
-
       <div className="grid gap-4 xl:grid-cols-2">
         <section className="rounded-2xl border border-border/70 bg-gradient-to-b from-card to-muted/10 p-4 shadow-sm sm:p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-base font-semibold text-card-foreground">Sieň slávy</h3>
-            <p className="text-xs text-muted-foreground">Mesiac - OK tipy, potom yield</p>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h3 className="flex items-center gap-2 text-base font-semibold text-card-foreground">
+              <Milestone className="h-4.5 w-4.5 text-sky-600" />
+              Posledné dosiahnuté milníky
+            </h3>
+            <p className="text-xs text-muted-foreground">kto • čo • kedy</p>
           </div>
+
           <div className="space-y-2">
-            {monthlyPerformanceHall.map((row) => (
-              <div
-                key={row.monthKey}
-                className="rounded-xl border border-border/70 bg-card/70 px-3 py-3 shadow-sm transition-colors hover:bg-muted/35"
-              >
-                <div className="mb-1.5 flex items-start justify-between">
-                  <p className="text-sm font-semibold tracking-tight text-card-foreground">{row.monthLabel}</p>
-                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-amber-500/12 text-sm">🥇</span>
-                </div>
-                <p className="text-base font-semibold text-card-foreground">{row.userName}</p>
-                <div className="mt-1.5 inline-flex items-center gap-2 rounded-lg border border-border/60 bg-muted/30 px-2.5 py-1.5 text-xs text-muted-foreground">
-                  <span>OK tipy: <span className="font-semibold text-card-foreground">{row.okTips}</span></span>
-                  <span className="text-border">•</span>
-                  <span>Yield: <span className={cn('font-semibold', row.yield >= 0 ? 'text-emerald-600' : 'text-rose-600')}>{formatYield(row.yield)}</span></span>
-                </div>
-              </div>
-            ))}
+            {latestMilestones.length === 0 ? (
+              <p className="rounded-xl border border-border/70 bg-card/70 p-3 text-sm text-muted-foreground">Zatiaľ žiadny milestone nebol dosiahnutý.</p>
+            ) : (
+              <>
+                {latestMilestones.map((event) => (
+                  <div
+                    key={`${event.userId}-${event.metric}-${event.milestone}-${event.achievedAt}`}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-border/70 bg-card/70 px-3 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-card-foreground">{event.userName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        dosiahol {event.milestone} {getMetricLabel(event.metric)}
+                      </p>
+                    </div>
+                    <div className="shrink-0 rounded-lg border border-border/70 bg-muted/40 px-2 py-1 text-xs font-medium text-muted-foreground">
+                      {fullDateLabel(event.achievedAt)}
+                    </div>
+                  </div>
+                ))}
+
+                <details className="rounded-xl border border-border/70 bg-card/70 p-3">
+                  <summary className="cursor-pointer list-none text-sm font-medium text-card-foreground">
+                    Zobraziť celkovú históriu milníkov ({milestoneEvents.length})
+                  </summary>
+                  <div className="mt-2 max-h-80 space-y-2 overflow-y-auto pr-1">
+                    {milestoneEvents.map((event, index) => (
+                      <div
+                        key={`${event.userId}-${event.metric}-${event.milestone}-${event.achievedAt}-full-${index}`}
+                        className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/25 px-2.5 py-2"
+                      >
+                        <p className="truncate text-xs text-card-foreground">
+                          <span className="font-semibold">{event.userName}</span> - {event.milestone} {getMetricLabel(event.metric)}
+                        </p>
+                        <p className="shrink-0 text-[11px] text-muted-foreground">{fullDateLabel(event.achievedAt)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              </>
+            )}
           </div>
         </section>
 
         <section className="rounded-2xl border border-border/70 bg-gradient-to-b from-card to-muted/10 p-4 shadow-sm sm:p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-base font-semibold text-card-foreground">Sieň slávy (Kurz)</h3>
-            <p className="text-xs text-muted-foreground">Rekord mesiaca</p>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h3 className="flex items-center gap-2 text-base font-semibold text-card-foreground">
+              <Gauge className="h-4.5 w-4.5 text-emerald-600" />
+              Výkonnosť tipérov (Yield)
+            </h3>
+            <p className="text-xs text-muted-foreground">podľa čistého ROI</p>
           </div>
+
           <div className="space-y-2">
-            {monthlyOddsHall.map((row) => (
+            {userYieldStats.map((user, index) => (
               <div
-                key={row.monthKey}
-                className="rounded-xl border border-border/70 bg-card/70 px-3 py-3 shadow-sm transition-colors hover:bg-muted/35"
+                key={user.userId}
+                className={cn(
+                  'rounded-xl border border-border/70 bg-card/70 px-3 py-3',
+                  index < 3 && 'border-amber-500/25 bg-amber-500/[0.06]',
+                )}
               >
-                <div className="mb-1.5 flex items-start justify-between">
-                  <p className="text-sm font-semibold tracking-tight text-card-foreground">{row.monthLabel}</p>
-                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-amber-500/12 text-sm">🥇</span>
+                <div className="mb-1.5 flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-card-foreground">{index + 1}. {user.userName}</p>
+                  <p className={cn('text-sm font-bold', user.yield >= 0 ? 'text-emerald-600' : 'text-rose-600')}>
+                    {formatYield(user.yield)}
+                  </p>
                 </div>
-                <p className="text-base font-semibold text-card-foreground">{row.userName}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">{row.context}</p>
-                <div className="mt-2 inline-flex items-center rounded-lg border border-amber-500/25 bg-amber-500/10 px-2.5 py-1.5">
-                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">Najvyšší kurz: {row.odds.toFixed(2)}</p>
+                <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
+                  <p>OK: <span className="font-semibold text-card-foreground">{user.okTips}</span></p>
+                  <p>Ø kurz: <span className="font-semibold text-card-foreground">{user.avgOdds.toFixed(2)}</span></p>
+                  <p>Zisk: <span className={cn('font-semibold', user.netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600')}>{formatCurrency(user.netProfit)}</span></p>
                 </div>
               </div>
             ))}
@@ -481,37 +707,102 @@ export default async function RankingPage() {
         </section>
       </div>
 
+      <div className="grid gap-4 xl:grid-cols-2">
+        <section className="rounded-2xl border border-border/70 bg-gradient-to-b from-card to-muted/10 p-4 shadow-sm sm:p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-base font-semibold text-card-foreground">Sieň slávy (mesiace - výkon)</h3>
+            <p className="text-xs text-muted-foreground">aktuálne 6 mesiacov</p>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            {recentPerformanceHall.map((row) => (
+              <div key={row.monthKey} className="rounded-xl border border-border/70 bg-card/70 p-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{row.monthLabel}</p>
+                <p className="mt-1 text-sm font-semibold text-card-foreground">{row.userName}</p>
+                <p className="mt-1 text-xs text-muted-foreground">OK {row.okTips} • Yield {formatYield(row.yield)}</p>
+              </div>
+            ))}
+          </div>
+
+          {archivedPerformanceHall.length > 0 ? (
+            <details className="mt-3 rounded-xl border border-border/70 bg-card/70 p-3">
+              <summary className="cursor-pointer list-none text-sm font-medium text-card-foreground">Zobraziť staršie mesiace ({archivedPerformanceHall.length})</summary>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {archivedPerformanceHall.map((row) => (
+                  <div key={`old-perf-${row.monthKey}`} className="rounded-lg border border-border/60 bg-muted/20 p-2.5 text-xs">
+                    <p className="font-medium text-card-foreground">{row.monthLabel}</p>
+                    <p className="text-muted-foreground">{row.userName} • OK {row.okTips} • {formatYield(row.yield)}</p>
+                  </div>
+                ))}
+              </div>
+            </details>
+          ) : null}
+        </section>
+
+        <section className="rounded-2xl border border-border/70 bg-gradient-to-b from-card to-muted/10 p-4 shadow-sm sm:p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-base font-semibold text-card-foreground">Sieň slávy (mesiace - kurz)</h3>
+            <p className="text-xs text-muted-foreground">rekordný trafený kurz</p>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            {recentOddsHall.map((row) => (
+              <div key={row.monthKey} className="rounded-xl border border-border/70 bg-card/70 p-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{row.monthLabel}</p>
+                <p className="mt-1 text-sm font-semibold text-card-foreground">{row.userName}</p>
+                <p className="mt-1 text-xs text-muted-foreground truncate">{row.context}</p>
+                <p className="mt-1.5 inline-flex rounded-md border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                  Kurz {row.odds.toFixed(2)}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {archivedOddsHall.length > 0 ? (
+            <details className="mt-3 rounded-xl border border-border/70 bg-card/70 p-3">
+              <summary className="cursor-pointer list-none text-sm font-medium text-card-foreground">Zobraziť staršie mesiace ({archivedOddsHall.length})</summary>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {archivedOddsHall.map((row) => (
+                  <div key={`old-odds-${row.monthKey}`} className="rounded-lg border border-border/60 bg-muted/20 p-2.5 text-xs">
+                    <p className="font-medium text-card-foreground">{row.monthLabel}</p>
+                    <p className="text-muted-foreground">{row.userName} • kurz {row.odds.toFixed(2)}</p>
+                  </div>
+                ))}
+              </div>
+            </details>
+          ) : null}
+        </section>
+      </div>
+
       <section className="rounded-2xl border border-border/70 bg-gradient-to-b from-card to-muted/10 p-4 shadow-sm sm:p-5">
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-base font-semibold text-card-foreground">Top 10 kurzov</h3>
+          <h3 className="flex items-center gap-2 text-base font-semibold text-card-foreground">
+            <Star className="h-4.5 w-4.5 text-amber-500" />
+            Top 10 kurzov
+          </h3>
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Star className="h-3.5 w-3.5" />
-            historicky najvyššie trafené kurzy
+            historicky najvyššie trafené
+            <ArrowRight className="h-3.5 w-3.5" />
           </div>
         </div>
 
-        <div className="space-y-2">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
           {top10Odds.map((item) => (
             <div
               key={`${item.rank}-${item.userName}-${item.dateLabel}-${item.odds}`}
               className={cn(
-                'grid grid-cols-[2rem,minmax(0,1fr),4.5rem] items-center gap-2 rounded-xl border border-border/70 bg-card/70 px-3 py-2.5 shadow-sm transition-colors hover:bg-muted/35',
-                item.rank <= 3 && 'border-amber-500/25 bg-amber-500/[0.06]',
+                'rounded-xl border border-border/70 bg-card/70 p-3',
+                item.rank <= 3 && 'border-amber-500/30 bg-amber-500/[0.06]',
               )}
             >
-              <p className={cn(
-                'text-sm font-semibold tabular-nums text-muted-foreground',
-                item.rank <= 3 && 'text-amber-700 dark:text-amber-400',
-              )}>
-                {item.rank}.
-              </p>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-card-foreground">{item.userName}</p>
-                <p className="truncate text-xs text-muted-foreground">{item.dateLabel} | {item.context}</p>
+              <div className="mb-1.5 flex items-center justify-between">
+                <p className={cn('text-sm font-semibold text-muted-foreground', item.rank <= 3 && 'text-amber-700')}>#{item.rank}</p>
+                <p className="rounded-md border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                  {item.odds.toFixed(2)}
+                </p>
               </div>
-              <div className="justify-self-end rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-2 py-1">
-                <p className="text-right text-sm font-semibold text-emerald-700 dark:text-emerald-400">{item.odds.toFixed(2)}</p>
-              </div>
+              <p className="truncate text-sm font-semibold text-card-foreground">{item.userName}</p>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.dateLabel} • {item.context}</p>
             </div>
           ))}
         </div>

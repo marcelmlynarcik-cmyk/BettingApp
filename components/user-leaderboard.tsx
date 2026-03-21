@@ -25,7 +25,7 @@ export function UserLeaderboard({ stats }: UserLeaderboardProps) {
   return (
     <div className="rounded-xl border border-border bg-card">
       <div className="border-b border-border p-4">
-        <h3 className="font-semibold text-card-foreground">Rebríček</h3>
+        <h3 className="font-semibold text-card-foreground">Sieň slávy</h3>
       </div>
       <div className="divide-y divide-border">
         {sortedStats.length === 0 ? (

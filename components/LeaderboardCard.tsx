@@ -21,7 +21,7 @@ export function LeaderboardCard({ stats }: LeaderboardCardProps) {
       <div className="border-b border-border bg-secondary/50 p-4">
         <div className="flex items-center gap-2">
           <Trophy className="h-5 w-5 text-amber-500" />
-          <h3 className="font-bold text-card-foreground uppercase tracking-wider text-sm">Mesačný Rebríček</h3>
+          <h3 className="font-bold text-card-foreground uppercase tracking-wider text-sm">Mesačná sieň slávy</h3>
         </div>
       </div>
       <div className="divide-y divide-border">

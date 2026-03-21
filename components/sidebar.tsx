@@ -29,7 +29,7 @@ const navItems = [
     icon: BarChart3,
   },
   {
-    title: 'Rebríček',
+    title: 'Sieň slávy',
     href: '/ranking',
     icon: Trophy,
   },
