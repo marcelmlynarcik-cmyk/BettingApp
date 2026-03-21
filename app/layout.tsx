@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { PwaRegister } from '@/components/pwa-register'
-import { PushPermissionPrompt } from '@/components/push-permission-prompt'
 import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
@@ -40,7 +39,6 @@ export default function RootLayout({
     <html lang="en" className="dark">
       <body className="font-sans antialiased">
         <PwaRegister />
-        <PushPermissionPrompt />
         {children}
         <Toaster richColors position="top-right" />
         <Analytics />
