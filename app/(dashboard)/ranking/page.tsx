@@ -12,7 +12,13 @@ import {
 } from 'lucide-react'
 
 type UserRecord = { id: string; name: string }
-type TicketRecord = { id: string; stake: number; date: string }
+type TicketRecord = {
+  id: string
+  stake: number
+  date: string
+  status?: 'win' | 'loss' | 'pending' | string | null
+  payout?: number | string | null
+}
 type PredictionRecord = {
   id: string
   user_id: string
@@ -60,7 +66,7 @@ type MonthlyOddsWinner = {
   context: string
 }
 
-type MilestoneMetric = 'tickets' | 'okTips'
+type MilestoneMetric = 'teamTickets' | 'teamProfit' | 'okTips' | 'hitRate' | 'wonOdds'
 
 type MilestoneEvent = {
   userId: string
@@ -73,18 +79,41 @@ type MilestoneEvent = {
 type UserMilestoneProgress = {
   userId: string
   userName: string
-  tickets: number
   okTips: number
-  nextTicketMilestone: number | null
+  resolvedTips: number
+  hitRate: number
+  bestWonOdds: number
   nextOkTipsMilestone: number | null
-  ticketProgressPct: number
+  nextHitRateMilestone: number | null
+  nextWonOddsMilestone: number | null
   okTipsProgressPct: number
-  reachedTicketMilestones: Array<{ value: number; achievedAt: string }>
+  hitRateProgressPct: number
+  wonOddsProgressPct: number
   reachedOkTipMilestones: Array<{ value: number; achievedAt: string }>
+  reachedHitRateMilestones: Array<{ value: number; achievedAt: string }>
+  reachedWonOddsMilestones: Array<{ value: number; achievedAt: string }>
+}
+
+type TeamTicketProgress = {
+  totalTickets: number
+  nextMilestone: number | null
+  progressPct: number
+  reachedMilestones: Array<{ value: number; achievedAt: string }>
+}
+
+type TeamProfitProgress = {
+  totalProfit: number
+  nextMilestone: number | null
+  progressPct: number
+  reachedMilestones: Array<{ value: number; achievedAt: string }>
 }
 
 const TICKET_MILESTONES = [25, 50, 100, 200, 300, 500, 750, 1000]
 const OK_TIPS_MILESTONES = [25, 50, 100, 200, 300, 500, 750, 1000]
+const TEAM_PROFIT_MILESTONES = [10000, 25000, 50000, 100000]
+const HIT_RATE_MILESTONES = [55, 60, 65, 70]
+const WON_ODDS_MILESTONES = [3, 5, 8, 10]
+const HIT_RATE_MIN_SAMPLE = 40
 
 function normalizeResult(value: unknown) {
   return String(value ?? '').trim().toUpperCase()
@@ -141,7 +170,29 @@ function formatYield(value: number) {
 }
 
 function getMetricLabel(metric: MilestoneMetric) {
-  return metric === 'tickets' ? 'tiketov' : 'OK tipov'
+  if (metric === 'teamTickets') return 'spoločných tiketov'
+  if (metric === 'teamProfit') return 'tímového profitu'
+  if (metric === 'hitRate') return 'úspešnosti'
+  if (metric === 'wonOdds') return 'trafeného kurzu'
+  return 'OK tipov'
+}
+
+function getMilestoneVerb(metric: MilestoneMetric) {
+  return metric === 'teamTickets' || metric === 'teamProfit' ? 'dosiahnutý' : 'dosiahol'
+}
+
+function formatMilestoneValue(metric: MilestoneMetric, value: number) {
+  if (metric === 'teamProfit') return `+${value.toFixed(0)} Kč`
+  if (metric === 'hitRate') return `${value.toFixed(0)}%`
+  if (metric === 'wonOdds') return value.toFixed(2)
+  return `${value.toFixed(0)}`
+}
+
+function formatMilestoneEvent(metric: MilestoneMetric, value: number) {
+  if (metric === 'teamProfit') return `${formatMilestoneValue(metric, value)} ${getMetricLabel(metric)}`
+  if (metric === 'hitRate') return `${formatMilestoneValue(metric, value)} ${getMetricLabel(metric)}`
+  if (metric === 'wonOdds') return `kurz ${formatMilestoneValue(metric, value)}`
+  return `${formatMilestoneValue(metric, value)} ${getMetricLabel(metric)}`
 }
 
 function clampProgress(value: number) {
@@ -189,7 +240,11 @@ async function getRankingData() {
   const [{ data: users }, tickets, predictions] = await Promise.all([
     supabase.from('users').select('id, name'),
     fetchAllRows<TicketRecord>((from, to) =>
-      supabase.from('tickets').select('id, stake, date').order('date', { ascending: true }).range(from, to),
+      supabase
+        .from('tickets')
+        .select('id, stake, date, status, payout')
+        .order('date', { ascending: true })
+        .range(from, to),
     ),
     fetchAllRows<PredictionRecord>((from, to) =>
       supabase
@@ -396,43 +451,28 @@ async function getRankingData() {
       .filter((item): item is { pred: PredictionRecord; dateValue: string } => Boolean(item.dateValue))
       .sort((a, b) => new Date(a.dateValue).getTime() - new Date(b.dateValue).getTime())
 
-    const seenTickets = new Set<string>()
-    const seenStandalonePredictions = new Set<string>()
-    let ticketCount = 0
     let okTipsCount = 0
+    let resolvedTipsCount = 0
+    let bestWonOdds = 0
 
-    const ticketReached: Array<{ value: number; achievedAt: string }> = []
     const okReached: Array<{ value: number; achievedAt: string }> = []
+    const hitRateReached: Array<{ value: number; achievedAt: string }> = []
+    const wonOddsReached: Array<{ value: number; achievedAt: string }> = []
 
-    let ticketMilestoneIndex = 0
     let okMilestoneIndex = 0
+    let hitRateMilestoneIndex = 0
+    let wonOddsMilestoneIndex = 0
 
     for (const { pred, dateValue } of userPreds) {
-      if (pred.ticket_id) {
-        if (!seenTickets.has(pred.ticket_id)) {
-          seenTickets.add(pred.ticket_id)
-          ticketCount += 1
-        }
-      } else if (!seenStandalonePredictions.has(pred.id)) {
-        seenStandalonePredictions.add(pred.id)
-        ticketCount += 1
+      const result = normalizeResult(pred.result)
+      if (result === 'OK' || result === 'NOK') {
+        resolvedTipsCount += 1
       }
 
-      while (ticketMilestoneIndex < TICKET_MILESTONES.length && ticketCount >= TICKET_MILESTONES[ticketMilestoneIndex]) {
-        const milestone = TICKET_MILESTONES[ticketMilestoneIndex]
-        ticketReached.push({ value: milestone, achievedAt: dateValue })
-        milestoneEvents.push({
-          userId: user.id,
-          userName: user.name,
-          metric: 'tickets',
-          milestone,
-          achievedAt: dateValue,
-        })
-        ticketMilestoneIndex += 1
-      }
-
-      if (normalizeResult(pred.result) === 'OK') {
+      if (result === 'OK') {
         okTipsCount += 1
+        const odds = parseOdds(pred.odds)
+        if (odds > bestWonOdds) bestWonOdds = odds
 
         while (okMilestoneIndex < OK_TIPS_MILESTONES.length && okTipsCount >= OK_TIPS_MILESTONES[okMilestoneIndex]) {
           const milestone = OK_TIPS_MILESTONES[okMilestoneIndex]
@@ -446,24 +486,138 @@ async function getRankingData() {
           })
           okMilestoneIndex += 1
         }
+
+        while (wonOddsMilestoneIndex < WON_ODDS_MILESTONES.length && bestWonOdds >= WON_ODDS_MILESTONES[wonOddsMilestoneIndex]) {
+          const milestone = WON_ODDS_MILESTONES[wonOddsMilestoneIndex]
+          wonOddsReached.push({ value: milestone, achievedAt: dateValue })
+          milestoneEvents.push({
+            userId: user.id,
+            userName: user.name,
+            metric: 'wonOdds',
+            milestone,
+            achievedAt: dateValue,
+          })
+          wonOddsMilestoneIndex += 1
+        }
+      }
+
+      if (resolvedTipsCount >= HIT_RATE_MIN_SAMPLE) {
+        const hitRate = (okTipsCount / Math.max(1, resolvedTipsCount)) * 100
+        while (hitRateMilestoneIndex < HIT_RATE_MILESTONES.length && hitRate >= HIT_RATE_MILESTONES[hitRateMilestoneIndex]) {
+          const milestone = HIT_RATE_MILESTONES[hitRateMilestoneIndex]
+          hitRateReached.push({ value: milestone, achievedAt: dateValue })
+          milestoneEvents.push({
+            userId: user.id,
+            userName: user.name,
+            metric: 'hitRate',
+            milestone,
+            achievedAt: dateValue,
+          })
+          hitRateMilestoneIndex += 1
+        }
       }
     }
 
-    const ticketProgress = getProgressToNext(ticketCount, TICKET_MILESTONES)
     const okProgress = getProgressToNext(okTipsCount, OK_TIPS_MILESTONES)
+    const wonOddsProgress = getProgressToNext(bestWonOdds, WON_ODDS_MILESTONES)
+
+    const currentHitRate = resolvedTipsCount > 0 ? (okTipsCount / resolvedTipsCount) * 100 : 0
+    const hitRateProgress =
+      resolvedTipsCount < HIT_RATE_MIN_SAMPLE
+        ? {
+            next: HIT_RATE_MILESTONES[0] ?? null,
+            pct: clampProgress((resolvedTipsCount / HIT_RATE_MIN_SAMPLE) * 100),
+          }
+        : getProgressToNext(currentHitRate, HIT_RATE_MILESTONES)
 
     milestoneProgressByUser.set(user.id, {
       userId: user.id,
       userName: user.name,
-      tickets: ticketCount,
       okTips: okTipsCount,
-      nextTicketMilestone: ticketProgress.next,
+      resolvedTips: resolvedTipsCount,
+      hitRate: currentHitRate,
+      bestWonOdds,
       nextOkTipsMilestone: okProgress.next,
-      ticketProgressPct: ticketProgress.pct,
+      nextHitRateMilestone: hitRateProgress.next,
+      nextWonOddsMilestone: wonOddsProgress.next,
       okTipsProgressPct: okProgress.pct,
-      reachedTicketMilestones: ticketReached,
+      hitRateProgressPct: hitRateProgress.pct,
+      wonOddsProgressPct: wonOddsProgress.pct,
       reachedOkTipMilestones: okReached,
+      reachedHitRateMilestones: hitRateReached,
+      reachedWonOddsMilestones: wonOddsReached,
     })
+  }
+
+  const sortedTickets = [...safeTickets].sort((a, b) => {
+    const timeDiff = new Date(a.date).getTime() - new Date(b.date).getTime()
+    if (timeDiff !== 0) return timeDiff
+    return a.id.localeCompare(b.id)
+  })
+
+  const teamReachedMilestones: Array<{ value: number; achievedAt: string }> = []
+  let teamMilestoneIndex = 0
+  let processedTickets = 0
+
+  for (const ticket of sortedTickets) {
+    processedTickets += 1
+    while (teamMilestoneIndex < TICKET_MILESTONES.length && processedTickets >= TICKET_MILESTONES[teamMilestoneIndex]) {
+      const milestone = TICKET_MILESTONES[teamMilestoneIndex]
+      teamReachedMilestones.push({ value: milestone, achievedAt: ticket.date })
+      milestoneEvents.push({
+        userId: 'team',
+        userName: 'Tím',
+        metric: 'teamTickets',
+        milestone,
+        achievedAt: ticket.date,
+      })
+      teamMilestoneIndex += 1
+    }
+  }
+
+  const teamProgress = getProgressToNext(safeTickets.length, TICKET_MILESTONES)
+  const teamTicketProgress: TeamTicketProgress = {
+    totalTickets: safeTickets.length,
+    nextMilestone: teamProgress.next,
+    progressPct: teamProgress.pct,
+    reachedMilestones: teamReachedMilestones,
+  }
+
+  const teamProfitReachedMilestones: Array<{ value: number; achievedAt: string }> = []
+  let teamProfitMilestoneIndex = 0
+  let teamCumulativeProfit = 0
+
+  for (const ticket of sortedTickets) {
+    const status = normalizeResult(ticket.status)
+    if (status !== 'WIN' && status !== 'LOSS') continue
+
+    const stake = Number(ticket.stake || 0)
+    const payout = Number(ticket.payout || 0)
+    teamCumulativeProfit += payout - stake
+
+    while (
+      teamProfitMilestoneIndex < TEAM_PROFIT_MILESTONES.length &&
+      teamCumulativeProfit >= TEAM_PROFIT_MILESTONES[teamProfitMilestoneIndex]
+    ) {
+      const milestone = TEAM_PROFIT_MILESTONES[teamProfitMilestoneIndex]
+      teamProfitReachedMilestones.push({ value: milestone, achievedAt: ticket.date })
+      milestoneEvents.push({
+        userId: 'team',
+        userName: 'Tím',
+        metric: 'teamProfit',
+        milestone,
+        achievedAt: ticket.date,
+      })
+      teamProfitMilestoneIndex += 1
+    }
+  }
+
+  const teamProfitProgress = getProgressToNext(Math.max(0, teamCumulativeProfit), TEAM_PROFIT_MILESTONES)
+  const teamProfitMilestoneProgress: TeamProfitProgress = {
+    totalProfit: teamCumulativeProfit,
+    nextMilestone: teamProfitProgress.next,
+    progressPct: teamProfitProgress.pct,
+    reachedMilestones: teamProfitReachedMilestones,
   }
 
   const userMilestoneProgress = safeUsers
@@ -471,7 +625,8 @@ async function getRankingData() {
     .filter((item): item is UserMilestoneProgress => Boolean(item))
     .sort((a, b) => {
       if (b.okTips !== a.okTips) return b.okTips - a.okTips
-      return b.tickets - a.tickets
+      if (b.hitRate !== a.hitRate) return b.hitRate - a.hitRate
+      return b.bestWonOdds - a.bestWonOdds
     })
 
   milestoneEvents.sort((a, b) => {
@@ -487,6 +642,8 @@ async function getRankingData() {
     monthlyOddsHall: Object.values(monthlyOddsWinners).sort((a, b) => b.monthKey.localeCompare(a.monthKey)),
     userMilestoneProgress,
     milestoneEvents,
+    teamTicketProgress,
+    teamProfitMilestoneProgress,
   }
 }
 
@@ -498,6 +655,8 @@ export default async function RankingPage() {
     monthlyOddsHall,
     userMilestoneProgress,
     milestoneEvents,
+    teamTicketProgress,
+    teamProfitMilestoneProgress,
   } = await getRankingData()
 
   const recentPerformanceHall = monthlyPerformanceHall.slice(0, 6)
@@ -526,7 +685,7 @@ export default async function RankingPage() {
       <section className="space-y-3.5">
         <div>
           <h2 className="text-lg font-semibold tracking-tight text-card-foreground md:text-xl">Profil tipérov a progres milníkov</h2>
-          <p className="text-xs text-muted-foreground md:text-sm">Ticket milestone = počet podaných tiketov, OK milestone = počet trafených tipov</p>
+          <p className="text-xs text-muted-foreground md:text-sm">Osobné metriky: OK tipy, úspešnosť, najvyšší trafený kurz</p>
         </div>
 
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -552,7 +711,7 @@ export default async function RankingPage() {
                     )}
                     <p className="truncate text-base font-semibold tracking-tight text-card-foreground">{user.userName}</p>
                   </div>
-                  <p className="mt-1 text-xs text-muted-foreground">#{index + 1} podľa počtu OK tipov</p>
+                  <p className="mt-1 text-xs text-muted-foreground">#{index + 1} podľa osobných výsledkov</p>
                 </div>
                 <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-right">
                   <p className="text-xs text-emerald-700">OK tipy</p>
@@ -561,21 +720,6 @@ export default async function RankingPage() {
               </div>
 
               <div className="space-y-3">
-                <div className="rounded-xl border border-border/60 bg-muted/25 p-2.5">
-                  <div className="mb-1.5 flex items-center justify-between text-xs">
-                    <span className="font-medium text-card-foreground">Tikety: {user.tickets}</span>
-                    <span className="text-muted-foreground">
-                      {user.nextTicketMilestone ? `ďalší ${user.nextTicketMilestone}` : 'max level'}
-                    </span>
-                  </div>
-                  <div className="h-2.5 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-sky-400 to-sky-600"
-                      style={{ width: `${user.ticketProgressPct}%` }}
-                    />
-                  </div>
-                </div>
-
                 <div className="rounded-xl border border-border/60 bg-muted/25 p-2.5">
                   <div className="mb-1.5 flex items-center justify-between text-xs">
                     <span className="font-medium text-card-foreground">OK tipy: {user.okTips}</span>
@@ -590,18 +734,45 @@ export default async function RankingPage() {
                     />
                   </div>
                 </div>
+
+                <div className="rounded-xl border border-border/60 bg-muted/25 p-2.5">
+                  <div className="mb-1.5 flex items-center justify-between text-xs">
+                    <span className="font-medium text-card-foreground">
+                      Úspešnosť: {user.hitRate.toFixed(1)}% ({user.resolvedTips} vyhodnotených)
+                    </span>
+                    <span className="text-muted-foreground">
+                      {user.resolvedTips < HIT_RATE_MIN_SAMPLE
+                        ? `unlock po ${HIT_RATE_MIN_SAMPLE}`
+                        : user.nextHitRateMilestone
+                          ? `ďalší ${user.nextHitRateMilestone}%`
+                          : 'max level'}
+                    </span>
+                  </div>
+                  <div className="h-2.5 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-violet-400 to-violet-600"
+                      style={{ width: `${user.hitRateProgressPct}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-border/60 bg-muted/25 p-2.5">
+                  <div className="mb-1.5 flex items-center justify-between text-xs">
+                    <span className="font-medium text-card-foreground">Najvyšší trafený kurz: {user.bestWonOdds.toFixed(2)}</span>
+                    <span className="text-muted-foreground">
+                      {user.nextWonOddsMilestone ? `ďalší ${user.nextWonOddsMilestone.toFixed(2)}` : 'max level'}
+                    </span>
+                  </div>
+                  <div className="h-2.5 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-amber-400 to-amber-600"
+                      style={{ width: `${user.wonOddsProgressPct}%` }}
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="mt-4 flex flex-wrap gap-1.5">
-                {user.reachedTicketMilestones.slice(-2).map((item) => (
-                  <span
-                    key={`ticket-${user.userId}-${item.value}`}
-                    className="inline-flex items-center gap-1 rounded-full border border-sky-500/25 bg-sky-500/10 px-2 py-0.5 text-[11px] font-semibold text-sky-700"
-                  >
-                    <Calendar className="h-3 w-3" />
-                    {item.value} tiketov ({fullDateLabel(item.achievedAt)})
-                  </span>
-                ))}
                 {user.reachedOkTipMilestones.slice(-2).map((item) => (
                   <span
                     key={`ok-${user.userId}-${item.value}`}
@@ -611,9 +782,92 @@ export default async function RankingPage() {
                     {item.value} OK ({fullDateLabel(item.achievedAt)})
                   </span>
                 ))}
+                {user.reachedHitRateMilestones.slice(-1).map((item) => (
+                  <span
+                    key={`hr-${user.userId}-${item.value}`}
+                    className="inline-flex items-center gap-1 rounded-full border border-violet-500/25 bg-violet-500/10 px-2 py-0.5 text-[11px] font-semibold text-violet-700"
+                  >
+                    <Calendar className="h-3 w-3" />
+                    úspešnosť {item.value.toFixed(0)}% ({fullDateLabel(item.achievedAt)})
+                  </span>
+                ))}
+                {user.reachedWonOddsMilestones.slice(-1).map((item) => (
+                  <span
+                    key={`odds-${user.userId}-${item.value}`}
+                    className="inline-flex items-center gap-1 rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-700"
+                  >
+                    <Calendar className="h-3 w-3" />
+                    kurz {item.value.toFixed(2)} ({fullDateLabel(item.achievedAt)})
+                  </span>
+                ))}
               </div>
             </article>
           ))}
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-border/70 bg-gradient-to-b from-card to-muted/10 p-4 shadow-sm sm:p-5">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h3 className="flex items-center gap-2 text-base font-semibold text-card-foreground">
+            <Trophy className="h-4.5 w-4.5 text-sky-600" />
+            Spoločné tímové milníky
+          </h3>
+          <p className="text-xs text-muted-foreground">zdieľaný cieľ pre všetkých</p>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-xl border border-border/70 bg-card/70 p-3">
+            <div className="mb-2 flex items-center justify-between text-sm">
+              <p className="font-semibold text-card-foreground">Spolu podaných tiketov: {teamTicketProgress.totalTickets}</p>
+              <p className="text-muted-foreground">
+                {teamTicketProgress.nextMilestone ? `ďalší cieľ ${teamTicketProgress.nextMilestone}` : 'max level'}
+              </p>
+            </div>
+            <div className="h-2.5 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-sky-400 to-sky-600"
+                style={{ width: `${teamTicketProgress.progressPct}%` }}
+              />
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {teamTicketProgress.reachedMilestones.slice(-3).map((item) => (
+                <span
+                  key={`team-ticket-${item.value}-${item.achievedAt}`}
+                  className="inline-flex items-center gap-1 rounded-full border border-sky-500/25 bg-sky-500/10 px-2 py-0.5 text-[11px] font-semibold text-sky-700"
+                >
+                  <Calendar className="h-3 w-3" />
+                  {item.value} tiketov ({fullDateLabel(item.achievedAt)})
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border/70 bg-card/70 p-3">
+            <div className="mb-2 flex items-center justify-between text-sm">
+              <p className="font-semibold text-card-foreground">Tímový profit: {formatCurrency(teamProfitMilestoneProgress.totalProfit)}</p>
+              <p className="text-muted-foreground">
+                {teamProfitMilestoneProgress.nextMilestone
+                  ? `ďalší cieľ +${teamProfitMilestoneProgress.nextMilestone.toFixed(0)} Kč`
+                  : 'max level'}
+              </p>
+            </div>
+            <div className="h-2.5 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-600"
+                style={{ width: `${teamProfitMilestoneProgress.progressPct}%` }}
+              />
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {teamProfitMilestoneProgress.reachedMilestones.slice(-3).map((item) => (
+                <span
+                  key={`team-profit-${item.value}-${item.achievedAt}`}
+                  className="inline-flex items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-700"
+                >
+                  <Calendar className="h-3 w-3" />
+                  +{item.value.toFixed(0)} Kč ({fullDateLabel(item.achievedAt)})
+                </span>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
@@ -640,7 +894,7 @@ export default async function RankingPage() {
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-card-foreground">{event.userName}</p>
                       <p className="text-xs text-muted-foreground">
-                        dosiahol {event.milestone} {getMetricLabel(event.metric)}
+                        {getMilestoneVerb(event.metric)} {formatMilestoneEvent(event.metric, event.milestone)}
                       </p>
                     </div>
                     <div className="shrink-0 rounded-lg border border-border/70 bg-muted/40 px-2 py-1 text-xs font-medium text-muted-foreground">
@@ -660,7 +914,7 @@ export default async function RankingPage() {
                         className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/25 px-2.5 py-2"
                       >
                         <p className="truncate text-xs text-card-foreground">
-                          <span className="font-semibold">{event.userName}</span> - {event.milestone} {getMetricLabel(event.metric)}
+                          <span className="font-semibold">{event.userName}</span> - {formatMilestoneEvent(event.metric, event.milestone)}
                         </p>
                         <p className="shrink-0 text-[11px] text-muted-foreground">{fullDateLabel(event.achievedAt)}</p>
                       </div>

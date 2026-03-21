@@ -75,7 +75,7 @@ export function PushNotificationBanner() {
     try {
       const refreshed = await refreshPushSubscription()
       if (!refreshed) {
-        setStatusMessage('Odber sa nepodarilo obnoviť.')
+        setStatusMessage('Odber sa nepodarilo obnoviť. Skús znovu povoliť notifikácie v prehliadači.')
         toast.error('Obnova odberu zlyhala')
         return
       }
@@ -83,7 +83,8 @@ export function PushNotificationBanner() {
       toast.success('Odber notifikácií obnovený')
     } catch (error) {
       console.error('Push subscription refresh failed:', error)
-      setStatusMessage('Odber sa nepodarilo obnoviť.')
+      const message = error instanceof Error && error.message ? error.message : 'Neznáma chyba'
+      setStatusMessage(`Odber sa nepodarilo obnoviť: ${message}`)
       toast.error('Obnova odberu zlyhala')
     } finally {
       setIsLoading(false)

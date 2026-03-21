@@ -13,6 +13,29 @@ function urlBase64ToUint8Array(base64String: string) {
   return outputArray
 }
 
+async function syncSubscription(subscription: PushSubscription) {
+  const payload = typeof subscription.toJSON === 'function' ? subscription.toJSON() : subscription
+  const response = await fetch('/api/push/subscribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      subscription: payload,
+      userAgent: navigator.userAgent,
+    }),
+  })
+
+  if (!response.ok) {
+    let details = ''
+    try {
+      const body = (await response.json()) as { error?: string }
+      details = body?.error ? `: ${body.error}` : ''
+    } catch {
+      // ignore parse failure
+    }
+    throw new Error(`Push subscription sync failed (${response.status})${details}`)
+  }
+}
+
 export async function registerAndSyncPushSubscription() {
   if (typeof window === 'undefined') return false
   if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
@@ -33,18 +56,7 @@ export async function registerAndSyncPushSubscription() {
       applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
     }))
 
-  const payload = typeof subscription.toJSON === 'function' ? subscription.toJSON() : subscription
-  const response = await fetch('/api/push/subscribe', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      subscription: payload,
-      userAgent: navigator.userAgent,
-    }),
-  })
-  if (!response.ok) {
-    throw new Error(`Push subscription sync failed with status ${response.status}`)
-  }
+  await syncSubscription(subscription)
 
   return true
 }
@@ -64,26 +76,22 @@ export async function refreshPushSubscription() {
   const existingSubscription = await registration.pushManager.getSubscription()
 
   if (existingSubscription) {
-    await existingSubscription.unsubscribe()
+    try {
+      await existingSubscription.unsubscribe()
+    } catch {
+      // Some browsers can fail unsubscribe for stale tokens; we still continue.
+    }
   }
 
-  const subscription = await registration.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
-  })
-
-  const payload = typeof subscription.toJSON === 'function' ? subscription.toJSON() : subscription
-  const response = await fetch('/api/push/subscribe', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      subscription: payload,
-      userAgent: navigator.userAgent,
-    }),
-  })
-  if (!response.ok) {
-    throw new Error(`Push subscription refresh failed with status ${response.status}`)
+  let subscription = await registration.pushManager.getSubscription()
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+    })
   }
+
+  await syncSubscription(subscription)
 
   return true
 }
