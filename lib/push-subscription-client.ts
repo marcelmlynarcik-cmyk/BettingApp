@@ -18,11 +18,13 @@ export async function registerAndSyncPushSubscription() {
   if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
     return false
   }
+  if (Notification.permission !== 'granted') return false
 
   const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
   if (!vapidPublicKey) return false
 
-  const registration = await navigator.serviceWorker.register('/sw.js')
+  await navigator.serviceWorker.register('/sw.js')
+  const registration = await navigator.serviceWorker.ready
   const existingSubscription = await registration.pushManager.getSubscription()
   const subscription =
     existingSubscription ||
@@ -31,14 +33,18 @@ export async function registerAndSyncPushSubscription() {
       applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
     }))
 
-  await fetch('/api/push/subscribe', {
+  const payload = typeof subscription.toJSON === 'function' ? subscription.toJSON() : subscription
+  const response = await fetch('/api/push/subscribe', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      subscription,
+      subscription: payload,
       userAgent: navigator.userAgent,
     }),
   })
+  if (!response.ok) {
+    throw new Error(`Push subscription sync failed with status ${response.status}`)
+  }
 
   return true
 }

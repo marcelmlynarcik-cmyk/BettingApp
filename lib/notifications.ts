@@ -2,11 +2,23 @@
 
 import { toast } from 'sonner'
 
-function showBrowserNotification(title: string, description?: string, url?: string) {
+async function showBrowserNotification(title: string, description?: string, url?: string) {
   if (typeof window === 'undefined' || !('Notification' in window)) return
   if (Notification.permission !== 'granted') return
 
   try {
+    if ('serviceWorker' in navigator) {
+      const registration = await navigator.serviceWorker.ready
+      await registration.showNotification(title, {
+        body: description,
+        icon: '/icons/icon-192x192.png',
+        badge: '/icons/icon-192x192.png',
+        data: url ? { url } : undefined,
+        tag: 'bettracker-local',
+      })
+      return
+    }
+
     const notification = new Notification(title, {
       body: description,
       data: url ? { url } : undefined,
@@ -27,7 +39,7 @@ export function notifySuccess(title: string, description?: string, url?: string)
   toast.success(title, {
     description,
   })
-  showBrowserNotification(title, description, url)
+  void showBrowserNotification(title, description, url)
 }
 
 export function notifyError(title: string, description?: string) {
