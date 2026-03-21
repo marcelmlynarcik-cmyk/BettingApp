@@ -13,6 +13,42 @@ function urlBase64ToUint8Array(base64String: string) {
   return outputArray
 }
 
+let cachedVapidPublicKey: string | null = null
+
+async function getVapidPublicKey() {
+  if (cachedVapidPublicKey) return cachedVapidPublicKey
+
+  const fromEnv = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+  if (fromEnv) {
+    cachedVapidPublicKey = fromEnv
+    return fromEnv
+  }
+
+  const response = await fetch('/api/push/public-key', {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  })
+
+  if (!response.ok) {
+    let details = ''
+    try {
+      const body = (await response.json()) as { error?: string }
+      details = body?.error ? `: ${body.error}` : ''
+    } catch {
+      // ignore parse failure
+    }
+    throw new Error(`Failed to load VAPID public key (${response.status})${details}`)
+  }
+
+  const body = (await response.json()) as { publicKey?: string }
+  if (!body.publicKey) {
+    throw new Error('VAPID public key missing in response')
+  }
+
+  cachedVapidPublicKey = body.publicKey
+  return body.publicKey
+}
+
 function uint8ArrayToBase64Url(value: Uint8Array) {
   let binary = ''
   for (let i = 0; i < value.length; i += 1) {
@@ -85,8 +121,7 @@ export async function registerAndSyncPushSubscription() {
   }
   if (Notification.permission !== 'granted') return false
 
-  const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
-  if (!vapidPublicKey) return false
+  const vapidPublicKey = await getVapidPublicKey()
 
   await navigator.serviceWorker.register('/sw.js')
   const registration = await navigator.serviceWorker.ready
@@ -125,8 +160,7 @@ export async function refreshPushSubscription() {
   }
   if (Notification.permission !== 'granted') return false
 
-  const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
-  if (!vapidPublicKey) return false
+  const vapidPublicKey = await getVapidPublicKey()
 
   await navigator.serviceWorker.register('/sw.js')
   const registration = await navigator.serviceWorker.ready

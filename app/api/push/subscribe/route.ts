@@ -37,12 +37,16 @@ export async function POST(request: Request) {
 
     if (error) {
       console.error('Push subscription upsert failed:', error)
-      return NextResponse.json({ error: 'Failed to save subscription' }, { status: 500 })
+      return NextResponse.json(
+        { error: `Failed to save subscription: ${error.message}` },
+        { status: 500 },
+      )
     }
 
     return NextResponse.json({ ok: true })
   } catch (error) {
     console.error('Push subscription API error:', error)
-    return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+    const message = error instanceof Error ? error.message : 'Invalid request'
+    return NextResponse.json({ error: message }, { status: 400 })
   }
 }

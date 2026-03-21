@@ -53,7 +53,7 @@ export async function POST(request: Request) {
             ? Number((error as { statusCode?: number }).statusCode)
             : 0
 
-        if (statusCode === 400 || statusCode === 401 || statusCode === 403 || statusCode === 404 || statusCode === 410) {
+        if (statusCode === 404 || statusCode === 410) {
           staleEndpoints.push(row.endpoint)
         } else {
           console.error('Push send failed for subscription:', row.endpoint, error)

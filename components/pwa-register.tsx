@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { registerAndSyncPushSubscription } from '@/lib/push-subscription-client'
+import { refreshPushSubscription, registerAndSyncPushSubscription } from '@/lib/push-subscription-client'
 
 export function PwaRegister() {
   useEffect(() => {
@@ -13,7 +13,12 @@ export function PwaRegister() {
       try {
         await navigator.serviceWorker.register('/sw.js')
         if ('Notification' in window && Notification.permission === 'granted') {
-          await registerAndSyncPushSubscription()
+          try {
+            await registerAndSyncPushSubscription()
+          } catch (syncError) {
+            console.warn('Push subscription sync failed, trying refresh:', syncError)
+            await refreshPushSubscription()
+          }
         }
       } catch (error) {
         console.error('Service worker registration failed:', error)
