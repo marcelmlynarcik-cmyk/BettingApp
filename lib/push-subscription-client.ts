@@ -48,3 +48,42 @@ export async function registerAndSyncPushSubscription() {
 
   return true
 }
+
+export async function refreshPushSubscription() {
+  if (typeof window === 'undefined') return false
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+    return false
+  }
+  if (Notification.permission !== 'granted') return false
+
+  const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+  if (!vapidPublicKey) return false
+
+  await navigator.serviceWorker.register('/sw.js')
+  const registration = await navigator.serviceWorker.ready
+  const existingSubscription = await registration.pushManager.getSubscription()
+
+  if (existingSubscription) {
+    await existingSubscription.unsubscribe()
+  }
+
+  const subscription = await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+  })
+
+  const payload = typeof subscription.toJSON === 'function' ? subscription.toJSON() : subscription
+  const response = await fetch('/api/push/subscribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      subscription: payload,
+      userAgent: navigator.userAgent,
+    }),
+  })
+  if (!response.ok) {
+    throw new Error(`Push subscription refresh failed with status ${response.status}`)
+  }
+
+  return true
+}
