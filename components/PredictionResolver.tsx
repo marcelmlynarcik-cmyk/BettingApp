@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { notifyError, notifySuccess } from '@/lib/notifications'
+import { notifyError, notifySuccess, triggerPushNotification } from '@/lib/notifications'
 import { PredictionRow } from './PredictionRow'
 import { CheckCheck } from 'lucide-react'
 import type { Prediction, User, Sport, League, Ticket } from '@/lib/types'
@@ -77,10 +77,30 @@ export function PredictionResolver({ initialPredictions, ticket }: PredictionRes
             await supabase.from('predictions').update({ profit }).eq('id', p.id)
           }
         }
+
+        if (allOK) {
+          await triggerPushNotification({
+            title: 'Výherný tiket',
+            body: `${ticket.description || 'Tiket'} • výhra ${payout.toFixed(0)} Kč • čistý zisk ${totalProfit.toFixed(0)} Kč`,
+            url: `/tickets/${ticket.id}`,
+            tag: `ticket-win-${ticket.id}`,
+          })
+        }
       }
 
+      const updatedPrediction = optimisticPredictions.find((p) => p.id === predictionId)
+      const userName = updatedPrediction?.user?.name || 'Tipér'
+      const sportName = updatedPrediction?.sport?.name || 'Neznámy šport'
+      const leagueName = updatedPrediction?.league?.name || 'Neznáma liga'
+      const oddsValue = Number(updatedPrediction?.odds || 0)
+      const ticketStateLabel = allResolved ? (allOK ? 'výherný tiket' : 'prehratý tiket') : 'tiket čaká na ďalšie tipy'
+
       router.refresh()
-      notifySuccess('Tip bol vyhodnotený', `${result} pre tiket ${ticket.description || 'bez popisu'}`)
+      notifySuccess(
+        'Tip bol vyhodnotený',
+        `${userName} • ${sportName}/${leagueName} • kurz ${oddsValue.toFixed(2)} • ${result} • ${ticketStateLabel}`,
+        `/tickets/${ticket.id}`,
+      )
     } catch (error) {
       console.error('Chyba pri aktualizácii statusu:', error)
       setPredictions(prevPredictions)
@@ -130,8 +150,15 @@ export function PredictionResolver({ initialPredictions, ticket }: PredictionRes
         description: `Výplata (Všetko OK): ${ticket.description || 'Tiket'} ${ticketTag}`,
       })
 
+      await triggerPushNotification({
+        title: 'Výherný tiket',
+        body: `${ticket.description || 'Tiket'} • výhra ${payout.toFixed(0)} Kč • čistý zisk ${totalProfit.toFixed(0)} Kč`,
+        url: `/tickets/${ticket.id}`,
+        tag: `ticket-win-${ticket.id}`,
+      })
+
       router.refresh()
-      notifySuccess('Tiket označený ako výherný', ticket.description || 'Všetko OK')
+      notifySuccess('Tiket označený ako výherný', ticket.description || 'Všetko OK', `/tickets/${ticket.id}`)
     } catch (error) {
       console.error('Chyba pri hromadnom vyhodnotení:', error)
       setPredictions(prevPredictions)

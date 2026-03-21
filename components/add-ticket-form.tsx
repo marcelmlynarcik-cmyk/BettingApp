@@ -444,7 +444,7 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
 
     if (ticketError || !ticket) {
       console.error('Error creating ticket:', ticketError)
-      return { ok: false as const, financeWarning: false as const }
+      return { ok: false as const, financeWarning: false as const, ticket: null }
     }
 
     const predictionsToInsert = ticketPredictions.map((prediction) => ({
@@ -461,7 +461,7 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
 
     if (predictionsError) {
       console.error('Error creating predictions:', predictionsError)
-      return { ok: false as const, financeWarning: false as const }
+      return { ok: false as const, financeWarning: false as const, ticket: null }
     }
 
     const ticketTag = `[ticket:${ticket.id}]`
@@ -475,10 +475,10 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
 
     if (transactionError) {
       console.error('Error creating finance transaction:', transactionError)
-      return { ok: true as const, financeWarning: true as const }
+      return { ok: true as const, financeWarning: true as const, ticket }
     }
 
-    return { ok: true as const, financeWarning: false as const }
+    return { ok: true as const, financeWarning: false as const, ticket }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -511,12 +511,18 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
       } else if (result.financeWarning) {
         notifyError('Tiket vytvorený, ale bez finančného záznamu')
       } else {
-        notifySuccess('Tiket bol vytvorený', ticketDescription || 'Nový tiket')
+        const detailUrl = result.ticket ? `/tickets/${result.ticket.id}` : '/tickets'
+        const safeDescription = ticketDescription || 'Nový tiket'
+        notifySuccess(
+          'Tiket bol vytvorený',
+          `${safeDescription} • vklad ${stakeNum.toFixed(0)} Kč • kurz ${singleCombinedOdds.toFixed(2)} • možná výhra ${singlePossibleWin.toFixed(0)} Kč`,
+          detailUrl,
+        )
         await triggerPushNotification({
           title: 'Podaný nový tiket',
-          body: ticketDescription || 'Nový tiket bol úspešne podaný',
-          url: '/tickets',
-          tag: 'ticket-submitted',
+          body: `${safeDescription} • vklad ${stakeNum.toFixed(0)} Kč • kurz ${singleCombinedOdds.toFixed(2)} • možná výhra ${singlePossibleWin.toFixed(0)} Kč`,
+          url: detailUrl,
+          tag: result.ticket ? `ticket-submitted-${result.ticket.id}` : 'ticket-submitted',
         })
       }
 
@@ -540,6 +546,7 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
 
     let successCount = 0
     let financeWarningCount = 0
+    let totalPossibleWin = 0
 
     for (let index = 0; index < multiTickets.length; index += 1) {
       const ticket = multiTickets[index]
@@ -558,6 +565,7 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
 
       if (result.ok) {
         successCount += 1
+        totalPossibleWin += result.ticket ? Number(result.ticket.possible_win || 0) : 0
         if (result.financeWarning) financeWarningCount += 1
       }
     }
@@ -572,10 +580,14 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
     if (financeWarningCount > 0) {
       notifyError(`Podaných ${successCount} tiketov, ale ${financeWarningCount} bez finančného záznamu`)
     } else {
-      notifySuccess('Tikety podané', `${successCount} z ${multiTickets.length}`)
+      notifySuccess(
+        'Tikety podané',
+        `${successCount} z ${multiTickets.length} • celkový vklad ${multiTotalStake.toFixed(0)} Kč • možná výhra ${totalPossibleWin.toFixed(0)} Kč`,
+        '/tickets',
+      )
       await triggerPushNotification({
         title: 'Tikety boli podané',
-        body: `Úspešne podaných ${successCount} tiketov`,
+        body: `Podaných ${successCount} tiketov • vklady ${multiTotalStake.toFixed(0)} Kč • možná výhra ${totalPossibleWin.toFixed(0)} Kč`,
         url: '/tickets',
         tag: 'ticket-submitted-batch',
       })

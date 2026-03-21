@@ -106,19 +106,32 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const targetUrl = event.notification?.data?.url || '/tickets'
+  const rawTargetUrl = event.notification?.data?.url || '/tickets'
+  const targetUrl = new URL(rawTargetUrl, self.location.origin).toString()
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clientList) => {
       for (const client of clientList) {
-        if (client.url.includes(targetUrl) && 'focus' in client) {
-          return client.focus()
+        if (client.url === targetUrl && 'focus' in client) {
+          await client.focus()
+          return
         }
       }
+
+      for (const client of clientList) {
+        if ('focus' in client) {
+          await client.focus()
+          if ('navigate' in client) {
+            await client.navigate(targetUrl)
+          }
+          return
+        }
+      }
+
       if (clients.openWindow) {
         return clients.openWindow(targetUrl)
       }
-      return Promise.resolve()
+      return
     }),
   )
 })

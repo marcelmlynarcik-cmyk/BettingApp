@@ -272,13 +272,18 @@ export function TicketActions({ ticketId, description }: TicketActionsProps) {
         if (insertPayoutError) throw insertPayoutError
       }
 
-      notifySuccess('Tiket bol upravený', ticketForm.description || 'Bez popisu')
+      const detailUrl = `/tickets/${ticketId}`
+      notifySuccess(
+        'Tiket bol upravený',
+        `${ticketForm.description || 'Bez popisu'} • vklad ${stake.toFixed(0)} Kč • kurz ${combinedOdds.toFixed(2)}`,
+        detailUrl,
+      )
 
       if (originalTicketStatus !== 'win' && status === 'win') {
         await triggerPushNotification({
           title: 'Výherný tiket',
-          body: `${ticketForm.description || 'Tiket'} je vyhodnotený ako výherný`,
-          url: `/tickets/${ticketId}`,
+          body: `${ticketForm.description || 'Tiket'} • výhra ${payout.toFixed(0)} Kč • čistý zisk ${(payout - stake).toFixed(0)} Kč`,
+          url: detailUrl,
           tag: `ticket-win-${ticketId}`,
         })
       }

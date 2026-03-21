@@ -2,22 +2,32 @@
 
 import { toast } from 'sonner'
 
-function showBrowserNotification(title: string, description?: string) {
+function showBrowserNotification(title: string, description?: string, url?: string) {
   if (typeof window === 'undefined' || !('Notification' in window)) return
   if (Notification.permission !== 'granted') return
 
   try {
-    new Notification(title, { body: description })
+    const notification = new Notification(title, {
+      body: description,
+      data: url ? { url } : undefined,
+    })
+
+    if (url) {
+      notification.onclick = () => {
+        window.focus()
+        window.location.href = url
+      }
+    }
   } catch {
     // Ignore notification API failures and keep toast-only feedback.
   }
 }
 
-export function notifySuccess(title: string, description?: string) {
+export function notifySuccess(title: string, description?: string, url?: string) {
   toast.success(title, {
     description,
   })
-  showBrowserNotification(title, description)
+  showBrowserNotification(title, description, url)
 }
 
 export function notifyError(title: string, description?: string) {
