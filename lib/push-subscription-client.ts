@@ -48,15 +48,30 @@ export async function registerAndSyncPushSubscription() {
 
   await navigator.serviceWorker.register('/sw.js')
   const registration = await navigator.serviceWorker.ready
-  const existingSubscription = await registration.pushManager.getSubscription()
-  const subscription =
-    existingSubscription ||
-    (await registration.pushManager.subscribe({
+  let subscription = await registration.pushManager.getSubscription()
+  if (!subscription) {
+    subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
-    }))
+    })
+  }
 
-  await syncSubscription(subscription)
+  try {
+    await syncSubscription(subscription)
+  } catch {
+    // Fallback for stale/invalid browser subscription state.
+    try {
+      await subscription.unsubscribe()
+    } catch {
+      // ignore and continue with forced re-subscribe
+    }
+
+    const freshSubscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+    })
+    await syncSubscription(freshSubscription)
+  }
 
   return true
 }
