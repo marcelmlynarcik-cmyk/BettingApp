@@ -20,6 +20,7 @@ type PredictionSnapshot = {
   id: string
   user_id: string
   result: 'OK' | 'NOK' | 'Pending'
+  odds: number | string | null
   created_at: string
   user?: { name?: string | null } | null
 }
@@ -30,6 +31,14 @@ type StatsAlertState = {
   lastStreakKey?: string
   lastHitRateMilestone?: number
   lastWeeklyReportKey?: string
+  milestoneTracker?: {
+    teamTickets: number
+    teamProfit: number
+    teamTurnover: number
+    userOkTips: Record<string, number>
+    userHitRate: Record<string, number>
+    userWonOdds: Record<string, number>
+  }
 }
 
 const STORAGE_KEY = 'bettracker.stats-alerts.v1'
@@ -37,6 +46,23 @@ const ALERT_COOLDOWN_HOURS = 24
 const DRAWDOWN_ALERT_PCT = 10
 const STREAK_ALERT_MIN = 3
 const HIT_RATE_MILESTONE_STEP = 500
+const PERSONAL_OK_TIPS_MILESTONES = [25, 50, 100, 200, 300, 500, 750, 1000]
+const PERSONAL_HIT_RATE_MILESTONES = [55, 60, 65, 70]
+const PERSONAL_HIT_RATE_MIN_SAMPLE = 40
+const TEAM_TICKET_MILESTONES = [25, 50, 100, 200, 300, 500, 750, 1000]
+const TEAM_PROFIT_MILESTONES = [10000, 25000, 50000, 100000]
+const MILESTONE_ALERT_BUDGET = 4
+
+function defaultMilestoneTracker() {
+  return {
+    teamTickets: 0,
+    teamProfit: 0,
+    teamTurnover: 0,
+    userOkTips: {} as Record<string, number>,
+    userHitRate: {} as Record<string, number>,
+    userWonOdds: {} as Record<string, number>,
+  }
+}
 
 function nowIso() {
   return new Date().toISOString()
@@ -64,6 +90,13 @@ function readState(): StatsAlertState {
       lastStreakKey: parsed.lastStreakKey,
       lastHitRateMilestone: parsed.lastHitRateMilestone,
       lastWeeklyReportKey: parsed.lastWeeklyReportKey,
+      milestoneTracker: {
+        ...defaultMilestoneTracker(),
+        ...(parsed.milestoneTracker || {}),
+        userOkTips: parsed.milestoneTracker?.userOkTips || {},
+        userHitRate: parsed.milestoneTracker?.userHitRate || {},
+        userWonOdds: parsed.milestoneTracker?.userWonOdds || {},
+      },
     }
   } catch {
     return { athBankroll: null, cooldowns: {} }
@@ -124,6 +157,44 @@ function getIsoWeekKey(input = new Date()) {
   return `${date.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`
 }
 
+function getHighestFixedMilestone(current: number, milestones: number[]) {
+  return [...milestones].reverse().find((milestone) => current >= milestone) || 0
+}
+
+function roundToStep(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100
+}
+
+function getNextWonOddsMilestoneFrom(lastMilestone: number | null) {
+  if (lastMilestone === null) return 2
+  if (lastMilestone < 2) return roundToStep(lastMilestone + 0.05)
+  if (lastMilestone < 3) return roundToStep(lastMilestone + 0.1)
+  if (lastMilestone < 5) return roundToStep(lastMilestone + 0.15)
+  return roundToStep(lastMilestone + 0.25)
+}
+
+function getHighestWonOddsMilestone(current: number) {
+  if (current <= 0) return 0
+
+  let achieved = 0
+  let next = getNextWonOddsMilestoneFrom(null)
+  let guard = 0
+  while (next <= current && guard < 1000) {
+    achieved = next
+    next = getNextWonOddsMilestoneFrom(next)
+    guard += 1
+  }
+
+  return achieved
+}
+
+function getPreviousTeamTurnoverMilestone(current: number) {
+  if (current < 5000) return 0
+  if (current <= 50000) return Math.floor(current / 5000) * 5000
+  if (current <= 200000) return 50000 + Math.floor((current - 50000) / 10000) * 10000
+  return 200000 + Math.floor((current - 200000) / 25000) * 25000
+}
+
 export async function evaluateAndTriggerStatsAlerts(
   supabase: SupabaseClient,
   contextUrl = '/statistics',
@@ -134,7 +205,7 @@ export async function evaluateAndTriggerStatsAlerts(
       supabase.from('finance_transactions').select('amount').in('type', ['deposit', 'withdraw']),
       supabase
         .from('predictions')
-        .select('id, user_id, result, created_at, user:users(name)')
+        .select('id, user_id, result, odds, created_at, user:users(name)')
         .in('result', ['OK', 'NOK'])
         .order('created_at', { ascending: false }),
     ])
@@ -147,12 +218,16 @@ export async function evaluateAndTriggerStatsAlerts(
     const cashflow = ((cashflowData || []) as CashflowSnapshot[]).map((row) => Number(row.amount || 0))
     const predictions = (predictionsData || []) as PredictionSnapshot[]
 
-    const totalStake = tickets.reduce((sum, ticket) => sum + ticket.stake, 0)
-    const totalPayout = tickets.reduce((sum, ticket) => sum + ticket.payout, 0)
+    const resolvedTickets = tickets.filter((ticket) => ticket.status === 'win' || ticket.status === 'loss')
+    const totalStake = resolvedTickets.reduce((sum, ticket) => sum + ticket.stake, 0)
+    const totalPayout = resolvedTickets.reduce((sum, ticket) => sum + ticket.payout, 0)
     const totalCashflow = cashflow.reduce((sum, amount) => sum + amount, 0)
     const bankroll = totalPayout + totalCashflow - totalStake
+    const teamProfit = resolvedTickets.reduce((sum, ticket) => sum + (ticket.payout - ticket.stake), 0)
+    const teamTurnover = tickets.reduce((sum, ticket) => sum + Math.max(0, Number(ticket.stake || 0)), 0)
 
     const state = readState()
+    if (!state.milestoneTracker) state.milestoneTracker = defaultMilestoneTracker()
     if (state.athBankroll === null) {
       state.athBankroll = bankroll
       writeState(state)
@@ -160,10 +235,20 @@ export async function evaluateAndTriggerStatsAlerts(
     }
 
     let alertsSent = 0
-    const resolvedTickets = tickets.filter((ticket) => ticket.status === 'win' || ticket.status === 'loss')
     const wins = resolvedTickets.filter((ticket) => ticket.status === 'win').length
     const losses = resolvedTickets.length - wins
     const hitRate = resolvedTickets.length > 0 ? (wins / resolvedTickets.length) * 100 : 0
+    let milestoneAlertsSent = 0
+
+    const fireMilestoneAlert = async (key: string, title: string, body: string, url = '/ranking') => {
+      if (milestoneAlertsSent >= MILESTONE_ALERT_BUDGET) return false
+      const fired = await fireAlert(state, key, title, body, url, 1)
+      if (fired) {
+        alertsSent += 1
+        milestoneAlertsSent += 1
+      }
+      return fired
+    }
 
     if (bankroll > state.athBankroll + 1) {
       const delta = bankroll - state.athBankroll
@@ -233,11 +318,60 @@ export async function evaluateAndTriggerStatsAlerts(
       state.lastHitRateMilestone = currentMilestone
     }
 
+    const tracker = state.milestoneTracker
+    const teamTicketsMilestone = getHighestFixedMilestone(tickets.length, TEAM_TICKET_MILESTONES)
+    if (teamTicketsMilestone > tracker.teamTickets) {
+      const fired = await fireMilestoneAlert(
+        `milestone-team-tickets-${teamTicketsMilestone}`,
+        'Tímový milestone',
+        `Dosiahnutých ${teamTicketsMilestone} spoločných tiketov`,
+      )
+      if (fired) tracker.teamTickets = teamTicketsMilestone
+    }
+
+    const teamProfitMilestone = getHighestFixedMilestone(Math.max(0, teamProfit), TEAM_PROFIT_MILESTONES)
+    if (teamProfitMilestone > tracker.teamProfit) {
+      const fired = await fireMilestoneAlert(
+        `milestone-team-profit-${teamProfitMilestone}`,
+        'Tímový milestone',
+        `Tímový profit dosiahol +${teamProfitMilestone.toFixed(0)} Kč`,
+      )
+      if (fired) tracker.teamProfit = teamProfitMilestone
+    }
+
+    const teamTurnoverMilestone = getPreviousTeamTurnoverMilestone(teamTurnover)
+    if (teamTurnoverMilestone > tracker.teamTurnover) {
+      const fired = await fireMilestoneAlert(
+        `milestone-team-turnover-${teamTurnoverMilestone}`,
+        'Tímový milestone',
+        `Prestávkované peniaze tímu: ${teamTurnoverMilestone.toFixed(0)} Kč`,
+      )
+      if (fired) tracker.teamTurnover = teamTurnoverMilestone
+    }
+
     if (predictions.length > 0) {
       const byUser = new Map<string, PredictionSnapshot[]>()
+      const personalByUser = new Map<string, { resolved: number; ok: number; bestWonOdds: number; name: string }>()
       for (const prediction of predictions) {
         if (!byUser.has(prediction.user_id)) byUser.set(prediction.user_id, [])
         byUser.get(prediction.user_id)!.push(prediction)
+
+        const current = personalByUser.get(prediction.user_id) || {
+          resolved: 0,
+          ok: 0,
+          bestWonOdds: 0,
+          name: prediction.user?.name || 'Tipér',
+        }
+        current.resolved += 1
+        if (prediction.result === 'OK') {
+          current.ok += 1
+          const predictionOdds = Number(prediction.odds || 0)
+          if (Number.isFinite(predictionOdds) && predictionOdds > current.bestWonOdds) {
+            current.bestWonOdds = predictionOdds
+          }
+        }
+        if (prediction.user?.name) current.name = prediction.user.name
+        personalByUser.set(prediction.user_id, current)
       }
 
       for (const [userId, userPredictions] of byUser) {
@@ -271,6 +405,51 @@ export async function evaluateAndTriggerStatsAlerts(
             24,
           )
           if (fired) alertsSent += 1
+        }
+      }
+
+      for (const [userId, personal] of personalByUser) {
+        if (milestoneAlertsSent >= MILESTONE_ALERT_BUDGET) break
+
+        const userName = personal.name || 'Tipér'
+        const okMilestone = getHighestFixedMilestone(personal.ok, PERSONAL_OK_TIPS_MILESTONES)
+        const previousOkMilestone = tracker.userOkTips[userId] || 0
+        if (okMilestone > previousOkMilestone) {
+          const fired = await fireMilestoneAlert(
+            `milestone-user-ok-${userId}-${okMilestone}`,
+            'Osobný milestone',
+            `${userName} dosiahol ${okMilestone} OK tipov`,
+          )
+          if (fired) tracker.userOkTips[userId] = okMilestone
+        }
+
+        if (milestoneAlertsSent >= MILESTONE_ALERT_BUDGET) break
+
+        if (personal.resolved >= PERSONAL_HIT_RATE_MIN_SAMPLE) {
+          const userHitRate = (personal.ok / Math.max(1, personal.resolved)) * 100
+          const hitRateMilestone = getHighestFixedMilestone(userHitRate, PERSONAL_HIT_RATE_MILESTONES)
+          const previousHitRateMilestone = tracker.userHitRate[userId] || 0
+          if (hitRateMilestone > previousHitRateMilestone) {
+            const fired = await fireMilestoneAlert(
+              `milestone-user-hitrate-${userId}-${hitRateMilestone}`,
+              'Osobný milestone',
+              `${userName} dosiahol hit rate ${hitRateMilestone.toFixed(0)}%`,
+            )
+            if (fired) tracker.userHitRate[userId] = hitRateMilestone
+          }
+        }
+
+        if (milestoneAlertsSent >= MILESTONE_ALERT_BUDGET) break
+
+        const wonOddsMilestone = getHighestWonOddsMilestone(personal.bestWonOdds)
+        const previousWonOddsMilestone = tracker.userWonOdds[userId] || 0
+        if (wonOddsMilestone > previousWonOddsMilestone) {
+          const fired = await fireMilestoneAlert(
+            `milestone-user-wonodds-${userId}-${wonOddsMilestone.toFixed(2)}`,
+            'Osobný milestone',
+            `${userName} trafil kurz ${wonOddsMilestone.toFixed(2)}`,
+          )
+          if (fired) tracker.userWonOdds[userId] = wonOddsMilestone
         }
       }
     }

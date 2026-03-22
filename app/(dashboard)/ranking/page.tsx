@@ -66,7 +66,7 @@ type MonthlyOddsWinner = {
   context: string
 }
 
-type MilestoneMetric = 'teamTickets' | 'teamProfit' | 'okTips' | 'hitRate' | 'wonOdds'
+type MilestoneMetric = 'teamTickets' | 'teamProfit' | 'teamTurnover' | 'okTips' | 'hitRate' | 'wonOdds'
 
 type MilestoneEvent = {
   userId: string
@@ -108,12 +108,81 @@ type TeamProfitProgress = {
   reachedMilestones: Array<{ value: number; achievedAt: string }>
 }
 
+type TeamTurnoverProgress = {
+  totalTurnover: number
+  nextMilestone: number | null
+  progressPct: number
+  reachedMilestones: Array<{ value: number; achievedAt: string }>
+}
+
 const TICKET_MILESTONES = [25, 50, 100, 200, 300, 500, 750, 1000]
 const OK_TIPS_MILESTONES = [25, 50, 100, 200, 300, 500, 750, 1000]
 const TEAM_PROFIT_MILESTONES = [10000, 25000, 50000, 100000]
 const HIT_RATE_MILESTONES = [55, 60, 65, 70]
-const WON_ODDS_MILESTONES = [3, 5, 8, 10]
 const HIT_RATE_MIN_SAMPLE = 40
+
+function roundToStep(value: number, step: number) {
+  const precision = step < 1 ? 100 : 1
+  return Math.round((value + Number.EPSILON) * precision) / precision
+}
+
+function getNextWonOddsMilestoneFrom(lastMilestone: number | null) {
+  if (lastMilestone === null) return 2
+  if (lastMilestone < 2) return roundToStep(lastMilestone + 0.05, 0.05)
+  if (lastMilestone < 3) return roundToStep(lastMilestone + 0.1, 0.1)
+  if (lastMilestone < 5) return roundToStep(lastMilestone + 0.15, 0.15)
+  return roundToStep(lastMilestone + 0.25, 0.25)
+}
+
+function getWonOddsProgress(current: number) {
+  if (current <= 0) {
+    const next = getNextWonOddsMilestoneFrom(null)
+    return { next, pct: 0 }
+  }
+
+  let previous = 0
+  let next = getNextWonOddsMilestoneFrom(null)
+  let guard = 0
+
+  while (next <= current && guard < 1000) {
+    previous = next
+    next = getNextWonOddsMilestoneFrom(next)
+    guard += 1
+  }
+
+  const span = Math.max(0.01, next - previous)
+  const pct = ((current - previous) / span) * 100
+
+  return {
+    next,
+    pct: clampProgress(pct),
+  }
+}
+
+function getNextTeamTurnoverMilestone(current: number) {
+  if (current < 50000) return Math.floor(current / 5000) * 5000 + 5000
+  if (current < 200000) return 50000 + (Math.floor((current - 50000) / 10000) + 1) * 10000
+  return 200000 + (Math.floor((current - 200000) / 25000) + 1) * 25000
+}
+
+function getPreviousTeamTurnoverMilestone(current: number) {
+  if (current < 5000) return 0
+  if (current <= 50000) return Math.floor(current / 5000) * 5000
+  if (current <= 200000) return 50000 + Math.floor((current - 50000) / 10000) * 10000
+  return 200000 + Math.floor((current - 200000) / 25000) * 25000
+}
+
+function getTeamTurnoverProgress(current: number) {
+  const next = getNextTeamTurnoverMilestone(current)
+  const previous = getPreviousTeamTurnoverMilestone(current)
+  const span = Math.max(1, next - previous)
+  const pct = ((current - previous) / span) * 100
+
+  return {
+    next,
+    pct: clampProgress(pct),
+  }
+}
 
 function normalizeResult(value: unknown) {
   return String(value ?? '').trim().toUpperCase()
@@ -172,17 +241,19 @@ function formatYield(value: number) {
 function getMetricLabel(metric: MilestoneMetric) {
   if (metric === 'teamTickets') return 'spoločných tiketov'
   if (metric === 'teamProfit') return 'tímového profitu'
+  if (metric === 'teamTurnover') return 'prestávkovaných peňazí tímu'
   if (metric === 'hitRate') return 'úspešnosti'
   if (metric === 'wonOdds') return 'trafeného kurzu'
   return 'OK tipov'
 }
 
 function getMilestoneVerb(metric: MilestoneMetric) {
-  return metric === 'teamTickets' || metric === 'teamProfit' ? 'dosiahnutý' : 'dosiahol'
+  return metric === 'teamTickets' || metric === 'teamProfit' || metric === 'teamTurnover' ? 'dosiahnutý' : 'dosiahol'
 }
 
 function formatMilestoneValue(metric: MilestoneMetric, value: number) {
   if (metric === 'teamProfit') return `+${value.toFixed(0)} Kč`
+  if (metric === 'teamTurnover') return `${value.toFixed(0)} Kč`
   if (metric === 'hitRate') return `${value.toFixed(0)}%`
   if (metric === 'wonOdds') return value.toFixed(2)
   return `${value.toFixed(0)}`
@@ -190,6 +261,7 @@ function formatMilestoneValue(metric: MilestoneMetric, value: number) {
 
 function formatMilestoneEvent(metric: MilestoneMetric, value: number) {
   if (metric === 'teamProfit') return `${formatMilestoneValue(metric, value)} ${getMetricLabel(metric)}`
+  if (metric === 'teamTurnover') return `${formatMilestoneValue(metric, value)} ${getMetricLabel(metric)}`
   if (metric === 'hitRate') return `${formatMilestoneValue(metric, value)} ${getMetricLabel(metric)}`
   if (metric === 'wonOdds') return `kurz ${formatMilestoneValue(metric, value)}`
   return `${formatMilestoneValue(metric, value)} ${getMetricLabel(metric)}`
@@ -461,7 +533,7 @@ async function getRankingData() {
 
     let okMilestoneIndex = 0
     let hitRateMilestoneIndex = 0
-    let wonOddsMilestoneIndex = 0
+    let nextWonOddsMilestone = getNextWonOddsMilestoneFrom(null)
 
     for (const { pred, dateValue } of userPreds) {
       const result = normalizeResult(pred.result)
@@ -487,8 +559,8 @@ async function getRankingData() {
           okMilestoneIndex += 1
         }
 
-        while (wonOddsMilestoneIndex < WON_ODDS_MILESTONES.length && bestWonOdds >= WON_ODDS_MILESTONES[wonOddsMilestoneIndex]) {
-          const milestone = WON_ODDS_MILESTONES[wonOddsMilestoneIndex]
+        while (bestWonOdds >= nextWonOddsMilestone) {
+          const milestone = nextWonOddsMilestone
           wonOddsReached.push({ value: milestone, achievedAt: dateValue })
           milestoneEvents.push({
             userId: user.id,
@@ -497,7 +569,7 @@ async function getRankingData() {
             milestone,
             achievedAt: dateValue,
           })
-          wonOddsMilestoneIndex += 1
+          nextWonOddsMilestone = getNextWonOddsMilestoneFrom(nextWonOddsMilestone)
         }
       }
 
@@ -519,7 +591,7 @@ async function getRankingData() {
     }
 
     const okProgress = getProgressToNext(okTipsCount, OK_TIPS_MILESTONES)
-    const wonOddsProgress = getProgressToNext(bestWonOdds, WON_ODDS_MILESTONES)
+    const wonOddsProgress = getWonOddsProgress(bestWonOdds)
 
     const currentHitRate = resolvedTipsCount > 0 ? (okTipsCount / resolvedTipsCount) * 100 : 0
     const hitRateProgress =
@@ -620,6 +692,38 @@ async function getRankingData() {
     reachedMilestones: teamProfitReachedMilestones,
   }
 
+  const teamTurnoverReachedMilestones: Array<{ value: number; achievedAt: string }> = []
+  let teamCumulativeTurnover = 0
+  let nextTeamTurnoverMilestone = getNextTeamTurnoverMilestone(0)
+
+  for (const ticket of sortedTickets) {
+    const stake = Number(ticket.stake || 0)
+    if (!Number.isFinite(stake) || stake <= 0) continue
+
+    teamCumulativeTurnover += stake
+
+    while (teamCumulativeTurnover >= nextTeamTurnoverMilestone) {
+      const milestone = nextTeamTurnoverMilestone
+      teamTurnoverReachedMilestones.push({ value: milestone, achievedAt: ticket.date })
+      milestoneEvents.push({
+        userId: 'team',
+        userName: 'Tím',
+        metric: 'teamTurnover',
+        milestone,
+        achievedAt: ticket.date,
+      })
+      nextTeamTurnoverMilestone = getNextTeamTurnoverMilestone(nextTeamTurnoverMilestone)
+    }
+  }
+
+  const teamTurnoverProgress = getTeamTurnoverProgress(teamCumulativeTurnover)
+  const teamTurnoverMilestoneProgress: TeamTurnoverProgress = {
+    totalTurnover: teamCumulativeTurnover,
+    nextMilestone: teamTurnoverProgress.next,
+    progressPct: teamTurnoverProgress.pct,
+    reachedMilestones: teamTurnoverReachedMilestones,
+  }
+
   const userMilestoneProgress = safeUsers
     .map((user) => milestoneProgressByUser.get(user.id))
     .filter((item): item is UserMilestoneProgress => Boolean(item))
@@ -644,6 +748,7 @@ async function getRankingData() {
     milestoneEvents,
     teamTicketProgress,
     teamProfitMilestoneProgress,
+    teamTurnoverMilestoneProgress,
   }
 }
 
@@ -657,6 +762,7 @@ export default async function RankingPage() {
     milestoneEvents,
     teamTicketProgress,
     teamProfitMilestoneProgress,
+    teamTurnoverMilestoneProgress,
   } = await getRankingData()
 
   const recentPerformanceHall = monthlyPerformanceHall.slice(0, 6)
@@ -813,7 +919,7 @@ export default async function RankingPage() {
           </h3>
           <p className="text-xs text-muted-foreground">zdieľaný cieľ pre všetkých</p>
         </div>
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid gap-3 md:grid-cols-3">
           <div className="rounded-xl border border-border/70 bg-card/70 p-3">
             <div className="mb-2 flex items-center justify-between text-sm">
               <p className="font-semibold text-card-foreground">Spolu podaných tiketov: {teamTicketProgress.totalTickets}</p>
@@ -863,6 +969,34 @@ export default async function RankingPage() {
                 >
                   <Calendar className="h-3 w-3" />
                   +{item.value.toFixed(0)} Kč ({fullDateLabel(item.achievedAt)})
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border/70 bg-card/70 p-3">
+            <div className="mb-2 flex items-center justify-between text-sm">
+              <p className="font-semibold text-card-foreground">Prestávkované peniaze: {teamTurnoverMilestoneProgress.totalTurnover.toFixed(0)} Kč</p>
+              <p className="text-muted-foreground">
+                {teamTurnoverMilestoneProgress.nextMilestone
+                  ? `ďalší cieľ ${teamTurnoverMilestoneProgress.nextMilestone.toFixed(0)} Kč`
+                  : 'max level'}
+              </p>
+            </div>
+            <div className="h-2.5 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-600"
+                style={{ width: `${teamTurnoverMilestoneProgress.progressPct}%` }}
+              />
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {teamTurnoverMilestoneProgress.reachedMilestones.slice(-3).map((item) => (
+                <span
+                  key={`team-turnover-${item.value}-${item.achievedAt}`}
+                  className="inline-flex items-center gap-1 rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-700"
+                >
+                  <Calendar className="h-3 w-3" />
+                  {item.value.toFixed(0)} Kč ({fullDateLabel(item.achievedAt)})
                 </span>
               ))}
             </div>
