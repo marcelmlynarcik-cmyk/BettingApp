@@ -30,6 +30,7 @@ type TipperInsight = {
   avgOdds: number
   highestWonOdds: number
   totalCorrect: number
+  chickenWinsAtOddsOne: number
   trend8w: number[]
   longestOkStreak: number
   longestNokStreak: number
@@ -369,6 +370,7 @@ export function StatisticsCharts({
   const sortedByAvgOdds = [...tipperInsights].sort((a, b) => b.avgOdds - a.avgOdds)
   const sortedByHighestWonOdds = [...tipperInsights].sort((a, b) => b.highestWonOdds - a.highestWonOdds)
   const sortedByCorrectTips = [...tipperInsights].sort((a, b) => b.totalCorrect - a.totalCorrect)
+  const sortedByChickenWinsAtOddsOne = [...tipperInsights].sort((a, b) => b.chickenWinsAtOddsOne - a.chickenWinsAtOddsOne)
   const sortedByLongestOkStreak = [...tipperInsights].sort((a, b) => b.longestOkStreak - a.longestOkStreak)
   const sortedByLongestNokStreak = [...tipperInsights].sort((a, b) => b.longestNokStreak - a.longestNokStreak)
   const sortedByBrokenTickets = [...tipperInsights].sort((a, b) => b.brokenTickets - a.brokenTickets)
@@ -446,6 +448,19 @@ export function StatisticsCharts({
               name: user.name,
               value: user.totalCorrect,
               valueLabel: String(user.totalCorrect),
+            }))}
+          />
+
+          <RankingCard
+            title="🐔 Chicken mód: výhry, čo nič nepridali"
+            subtitle="Koľkokrát mal tipér OK tip s kurzom 1.00 (t. j. pre tiket 0 prínos)"
+            barClassName="bg-gradient-to-r from-orange-500 to-amber-500"
+            emptyText={`Žiadny tipér nemá aspoň ${minTips} tipov v tomto období.`}
+            items={sortedByChickenWinsAtOddsOne.map((user) => ({
+              id: `${user.name}-chicken-wins-odds-one`,
+              name: user.name,
+              value: user.chickenWinsAtOddsOne,
+              valueLabel: String(user.chickenWinsAtOddsOne),
             }))}
           />
 

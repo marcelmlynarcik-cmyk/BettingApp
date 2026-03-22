@@ -142,6 +142,7 @@ type StatisticsData = {
     avgOdds: number
     highestWonOdds: number
     totalCorrect: number
+    chickenWinsAtOddsOne: number
     trend8w: number[]
     longestOkStreak: number
     longestNokStreak: number
@@ -758,6 +759,10 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
         const userPreds = filteredPredictions.filter((prediction) => prediction.user_id === user.id)
         const wins = userPreds.filter((prediction) => normalizeResult(prediction.result) === 'OK').length
         const losses = userPreds.filter((prediction) => normalizeResult(prediction.result) === 'NOK').length
+        const chickenWinsAtOddsOne = userPreds.filter((prediction) => {
+          if (normalizeResult(prediction.result) !== 'OK') return false
+          return Math.abs(toNumber(prediction.odds) - 1) < 0.000001
+        }).length
         const completed = wins + losses
         const avgOdds = userPreds.length > 0 ? userPreds.reduce((sum, prediction) => sum + toNumber(prediction.odds), 0) / userPreds.length : 0
         const weekProfitMap = new Map<string, number>()
@@ -871,6 +876,7 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
           avgOdds,
           highestWonOdds: highestWonOddsByUser.get(user.id) ?? 0,
           totalCorrect: wins,
+          chickenWinsAtOddsOne,
           trend8w,
           longestOkStreak,
           longestNokStreak,
