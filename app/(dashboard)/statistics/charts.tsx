@@ -188,7 +188,7 @@ function DashboardCard({
   className?: string
 }) {
   return (
-    <div className={cn('rounded-xl border border-border/80 bg-card p-4 shadow-sm sm:p-5', className)}>
+    <div className={cn('min-w-0 rounded-xl border border-border/80 bg-card p-4 shadow-sm sm:p-5', className)}>
       <div className="mb-3">
         <h3 className="text-sm font-semibold tracking-tight text-card-foreground sm:text-base">{title}</h3>
         <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
@@ -743,7 +743,7 @@ export function StatisticsCharts({
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   <div className="rounded-lg border border-border bg-muted/20 p-3">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Najlepší bucket</p>
-                    <p className="mt-1 text-sm font-black text-card-foreground">{bestIntensityRow?.bucketLabel || '-'}</p>
+                    <p className="mt-1 break-words text-sm font-black text-card-foreground">{bestIntensityRow?.bucketLabel || '-'}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       ROI {bestIntensityRow ? `${bestIntensityRow.roi >= 0 ? '+' : ''}${bestIntensityRow.roi.toFixed(1)}%` : '-'}
                     </p>
@@ -755,7 +755,7 @@ export function StatisticsCharts({
                   </div>
                   <div className="rounded-lg border border-border bg-muted/20 p-3">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Odporúčanie</p>
-                    <p className="mt-1 text-sm font-black text-card-foreground">{intensityRecommendation}</p>
+                    <p className="mt-1 break-words text-sm font-black text-card-foreground">{intensityRecommendation}</p>
                   </div>
                   <div className="rounded-lg border border-border bg-muted/20 p-3">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Nízka spoľahlivosť</p>
@@ -795,7 +795,43 @@ export function StatisticsCharts({
                   </ResponsiveContainer>
                 </div>
 
-                <div className="overflow-x-auto rounded-lg border border-border">
+                <div className="space-y-2 md:hidden">
+                  {[...dailyIntensityPerformance]
+                    .sort((a, b) => b.roi - a.roi || b.dayCount - a.dayCount)
+                    .map((row) => (
+                      <div key={`mobile-${row.bucketKey}`} className="rounded-lg border border-border bg-muted/10 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-semibold text-foreground">{row.bucketLabel}</p>
+                          <span
+                            className={cn(
+                              'rounded-full border px-2 py-0.5 text-[11px] font-semibold',
+                              row.reliability === 'Vysoká' && 'border-emerald-300/70 bg-emerald-500/10 text-emerald-700',
+                              row.reliability === 'Stredná' && 'border-amber-300/70 bg-amber-500/10 text-amber-700',
+                              row.reliability === 'Nízka' && 'border-slate-300/70 bg-slate-500/10 text-slate-700',
+                            )}
+                          >
+                            {row.reliability}
+                          </span>
+                        </div>
+                        <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                          <p className="text-muted-foreground">Dní: <span className="font-semibold text-foreground">{row.dayCount}</span></p>
+                          <p className="text-muted-foreground">Tiketov: <span className="font-semibold text-foreground">{row.tickets}</span></p>
+                          <p className="text-muted-foreground">Win rate: <span className="font-semibold text-foreground">{row.winRate.toFixed(1)}%</span></p>
+                          <p className="text-muted-foreground">Avg stake/deň: <span className="font-semibold text-foreground">{row.avgStakePerDay.toFixed(0)} Kč</span></p>
+                        </div>
+                        <div className="mt-2 flex items-center justify-between text-xs">
+                          <p className={cn('font-semibold', row.profit >= 0 ? 'text-emerald-600' : 'text-rose-600')}>
+                            Profit: {formatCurrency(row.profit)}
+                          </p>
+                          <p className={cn('font-semibold', row.roi >= 0 ? 'text-emerald-600' : 'text-rose-600')}>
+                            ROI: {row.roi >= 0 ? '+' : ''}{row.roi.toFixed(1)}%
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+
+                <div className="hidden overflow-x-auto rounded-lg border border-border md:block">
                   <table className="min-w-full text-sm">
                     <thead className="bg-muted/30 text-xs uppercase tracking-wider text-muted-foreground">
                       <tr>

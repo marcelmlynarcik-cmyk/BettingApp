@@ -92,19 +92,23 @@ export function PushNotificationBanner() {
 
   if (permission === 'granted') {
     return (
-      <section className="mb-4 rounded-xl border border-border bg-card p-3 md:p-4">
-        <p className="text-sm font-semibold text-card-foreground">Push notifikácie sú aktívne</p>
-        <p className="mt-1 text-xs text-muted-foreground">Ak sa notifikácie nedoručujú spoľahlivo, obnov push token.</p>
-        <button
-          type="button"
-          onClick={repairNotifications}
-          disabled={isLoading}
-          className="mt-3 rounded-lg bg-secondary px-3 py-2 text-xs font-bold text-secondary-foreground disabled:opacity-70"
-        >
-          {isLoading ? 'Obnovujem...' : 'Obnoviť push token'}
-        </button>
-        {statusMessage ? <p className="mt-2 text-xs text-muted-foreground">{statusMessage}</p> : null}
-      </section>
+      <details className="mb-4 rounded-xl border border-border/70 bg-card/50 p-2">
+        <summary className="cursor-pointer list-none text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Push notifikácie sú aktívne • pokročilé
+        </summary>
+        <div className="mt-2 rounded-lg border border-border bg-card p-3">
+          <p className="text-xs text-muted-foreground">Ak sa notifikácie nedoručujú spoľahlivo, obnov push token.</p>
+          <button
+            type="button"
+            onClick={repairNotifications}
+            disabled={isLoading}
+            className="mt-3 rounded-lg bg-secondary px-3 py-2 text-xs font-bold text-secondary-foreground disabled:opacity-70"
+          >
+            {isLoading ? 'Obnovujem...' : 'Obnoviť push token'}
+          </button>
+          {statusMessage ? <p className="mt-2 text-xs text-muted-foreground">{statusMessage}</p> : null}
+        </div>
+      </details>
     )
   }
 
