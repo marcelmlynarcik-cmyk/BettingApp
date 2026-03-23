@@ -148,6 +148,7 @@ type StatisticsData = {
     longestNokStreak: number
     longestOkStreakPeriod: StreakPeriod | null
     longestNokStreakPeriod: StreakPeriod | null
+    soloWinningTipTickets: number
     brokenTickets: number
     bestSport: { name: string; yield: number; tips: number } | null
     bestLeague: { name: string; yield: number; tips: number } | null
@@ -882,6 +883,7 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
           longestNokStreak,
           longestOkStreakPeriod,
           longestNokStreakPeriod,
+          soloWinningTipTickets: 0,
           brokenTickets: 0,
           bestSport,
           bestLeague,
@@ -891,6 +893,7 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
       .sort((a, b) => b.winRate - a.winRate)
 
     const brokenTicketCountByUser = new Map<string, number>()
+    const soloWinningTipTicketCountByUser = new Map<string, number>()
     const predictionsByTicket = filteredPredictions.reduce((acc, prediction) => {
       if (!prediction.ticket_id) return acc
       if (!acc[prediction.ticket_id]) acc[prediction.ticket_id] = []
@@ -899,13 +902,17 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
     }, {} as Record<string, PredictionRecord[]>)
 
     for (const ticketPredictions of Object.values(predictionsByTicket)) {
-      if (ticketPredictions.length !== 3) continue
-
       const resolvedPredictions = ticketPredictions.filter((prediction) => {
         const result = normalizeResult(prediction.result)
         return result === 'OK' || result === 'NOK'
       })
-      if (resolvedPredictions.length !== 3) continue
+      if (resolvedPredictions.length < 2 || resolvedPredictions.length !== ticketPredictions.length) continue
+
+      const okPredictions = resolvedPredictions.filter((prediction) => normalizeResult(prediction.result) === 'OK')
+      if (okPredictions.length === 1) {
+        const soloWinnerUserId = okPredictions[0].user_id
+        soloWinningTipTicketCountByUser.set(soloWinnerUserId, (soloWinningTipTicketCountByUser.get(soloWinnerUserId) || 0) + 1)
+      }
 
       const nokPredictions = resolvedPredictions.filter((prediction) => normalizeResult(prediction.result) === 'NOK')
       if (nokPredictions.length !== 1) continue
@@ -916,6 +923,7 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
 
     const tipperInsightsWithBrokenTickets = tipperInsights.map((user) => ({
       ...user,
+      soloWinningTipTickets: soloWinningTipTicketCountByUser.get(user.userId) || 0,
       brokenTickets: brokenTicketCountByUser.get(user.userId) || 0,
     }))
 

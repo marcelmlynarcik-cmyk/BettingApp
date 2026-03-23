@@ -36,6 +36,7 @@ type TipperInsight = {
   longestNokStreak: number
   longestOkStreakPeriod: { start: string; end: string } | null
   longestNokStreakPeriod: { start: string; end: string } | null
+  soloWinningTipTickets: number
   brokenTickets: number
   bestSport: { name: string; yield: number; tips: number } | null
   bestLeague: { name: string; yield: number; tips: number } | null
@@ -373,6 +374,7 @@ export function StatisticsCharts({
   const sortedByChickenWinsAtOddsOne = [...tipperInsights].sort((a, b) => b.chickenWinsAtOddsOne - a.chickenWinsAtOddsOne)
   const sortedByLongestOkStreak = [...tipperInsights].sort((a, b) => b.longestOkStreak - a.longestOkStreak)
   const sortedByLongestNokStreak = [...tipperInsights].sort((a, b) => b.longestNokStreak - a.longestNokStreak)
+  const sortedBySoloWinningTipTickets = [...tipperInsights].sort((a, b) => b.soloWinningTipTickets - a.soloWinningTipTickets)
   const sortedByBrokenTickets = [...tipperInsights].sort((a, b) => b.brokenTickets - a.brokenTickets)
   const chartSurfaceClass = 'rounded-xl border border-border/70 bg-gradient-to-r from-background to-muted/20 p-2 shadow-sm'
   const todayLabel = new Intl.DateTimeFormat('sk-SK', {
@@ -403,14 +405,14 @@ export function StatisticsCharts({
             }
             barClassName="bg-gradient-to-r from-emerald-500 to-teal-500"
             emptyText={`Žiadny tipér nemá aspoň ${minTips} tipov v tomto období.`}
-          items={sortedByWinRate.map((user) => ({
-            id: `${user.userId}-win-rate`,
-            name: user.name,
-            value: user.winRate,
-            valueLabel: `${user.winRate.toFixed(1)}%`,
-            sparkline: user.trend8w,
-          }))}
-        />
+            items={sortedByWinRate.map((user) => ({
+              id: `${user.userId}-win-rate`,
+              name: user.name,
+              value: user.winRate,
+              valueLabel: `${user.winRate.toFixed(1)}%`,
+              sparkline: user.trend8w,
+            }))}
+          />
 
           <RankingCard
             title="Priemerný kurz podľa tipéra"
@@ -474,7 +476,7 @@ export function StatisticsCharts({
               name: user.name,
               value: user.longestOkStreak,
               valueLabel: String(user.longestOkStreak),
-              contextLabel: formatStreakPeriod(user.longestOkStreakPeriod),
+              contextLabel: formatStreakPeriod(user.longestOkStreakPeriod) ?? undefined,
             }))}
           />
 
@@ -488,7 +490,20 @@ export function StatisticsCharts({
               name: user.name,
               value: user.longestNokStreak,
               valueLabel: String(user.longestNokStreak),
-              contextLabel: formatStreakPeriod(user.longestNokStreakPeriod),
+              contextLabel: formatStreakPeriod(user.longestNokStreakPeriod) ?? undefined,
+            }))}
+          />
+
+          <RankingCard
+            title="Sólista: jediný výherný tip"
+            subtitle="Počet tiketov, kde bol OK iba jeho tip"
+            barClassName="bg-gradient-to-r from-cyan-500 to-blue-500"
+            emptyText={`Žiadny tipér nemá aspoň ${minTips} tipov v tomto období.`}
+            items={sortedBySoloWinningTipTickets.map((user) => ({
+              id: `${user.name}-solo-winning-tip-ticket`,
+              name: user.name,
+              value: user.soloWinningTipTickets,
+              valueLabel: String(user.soloWinningTipTickets),
             }))}
           />
 
