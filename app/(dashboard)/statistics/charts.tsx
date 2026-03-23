@@ -418,7 +418,6 @@ export function StatisticsCharts({
     : 'Zatiaľ bez stabilného odporúčania'
   const totalIntensityDays = intensityRows.reduce((sum, row) => sum + row.dayCount, 0)
   const totalIntensityResolvedTickets = intensityRows.reduce((sum, row) => sum + row.resolvedTickets, 0)
-  const lowDataIntensityBuckets = intensityRows.filter((row) => row.dayCount < 10).length
 
   return (
     <div className="space-y-4">
@@ -740,7 +739,7 @@ export function StatisticsCharts({
           >
             {intensityRows.length > 0 ? (
               <div className="space-y-4">
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   <div className="rounded-lg border border-border bg-muted/20 p-3">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Najlepší bucket</p>
                     <p className="mt-1 break-words text-sm font-black text-card-foreground">{bestIntensityRow?.bucketLabel || '-'}</p>
@@ -756,11 +755,6 @@ export function StatisticsCharts({
                   <div className="rounded-lg border border-border bg-muted/20 p-3">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Odporúčanie</p>
                     <p className="mt-1 break-words text-sm font-black text-card-foreground">{intensityRecommendation}</p>
-                  </div>
-                  <div className="rounded-lg border border-border bg-muted/20 p-3">
-                    <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Nízka spoľahlivosť</p>
-                    <p className="mt-1 text-sm font-black text-card-foreground">{lowDataIntensityBuckets}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">bucketov pod 10 dní</p>
                   </div>
                 </div>
 
