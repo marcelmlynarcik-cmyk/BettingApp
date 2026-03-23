@@ -87,6 +87,24 @@ type OddsRangePerformanceStat = {
   yield: number
 }
 
+type DailyIntensityPerformanceStat = {
+  bucketKey: '1' | '2' | '3' | '4+'
+  bucketLabel: string
+  dayCount: number
+  resolvedDayCount: number
+  tickets: number
+  resolvedTickets: number
+  wins: number
+  winRate: number
+  stake: number
+  payout: number
+  profit: number
+  roi: number
+  avgStakePerDay: number
+  unresolvedTickets: number
+  reliability: 'Nízka' | 'Stredná' | 'Vysoká'
+}
+
 type StreakStats = {
   currentWin: number
   currentLoss: number
@@ -171,6 +189,7 @@ type StatisticsData = {
   monthlyCashflowStats: MonthlyCashflowStat[]
   weekdayPerformance: WeekdayPerformanceStat[]
   oddsRangePerformance: OddsRangePerformanceStat[]
+  dailyIntensityPerformance: DailyIntensityPerformanceStat[]
   streakStats: StreakStats
 }
 
@@ -507,6 +526,107 @@ function buildOddsRangePerformance(predictions: PredictionRecord[]): OddsRangePe
     profit: item.profit,
     yield: item.stakeProxy > 0 ? (item.profit / item.stakeProxy) * 100 : 0,
   }))
+}
+
+function intensityBucketKey(dayTicketCount: number): DailyIntensityPerformanceStat['bucketKey'] {
+  if (dayTicketCount <= 1) return '1'
+  if (dayTicketCount === 2) return '2'
+  if (dayTicketCount === 3) return '3'
+  return '4+'
+}
+
+function intensityBucketLabel(bucketKey: DailyIntensityPerformanceStat['bucketKey']) {
+  if (bucketKey === '1') return '1 tiket/deň'
+  if (bucketKey === '2') return '2 tikety/deň'
+  if (bucketKey === '3') return '3 tikety/deň'
+  return '4+ tiketov/deň'
+}
+
+function getReliability(dayCount: number): DailyIntensityPerformanceStat['reliability'] {
+  if (dayCount >= 30) return 'Vysoká'
+  if (dayCount >= 10) return 'Stredná'
+  return 'Nízka'
+}
+
+function buildDailyIntensityPerformance(tickets: TicketRecord[]): DailyIntensityPerformanceStat[] {
+  const byDay = new Map<string, TicketRecord[]>()
+  for (const ticket of tickets) {
+    const list = byDay.get(ticket.date) || []
+    list.push(ticket)
+    byDay.set(ticket.date, list)
+  }
+
+  const orderedBuckets: Array<DailyIntensityPerformanceStat['bucketKey']> = ['1', '2', '3', '4+']
+  const base = new Map<DailyIntensityPerformanceStat['bucketKey'], {
+    dayCount: number
+    resolvedDayCount: number
+    tickets: number
+    resolvedTickets: number
+    wins: number
+    stake: number
+    payout: number
+    unresolvedTickets: number
+  }>(
+    orderedBuckets.map((bucket) => [
+      bucket,
+      {
+        dayCount: 0,
+        resolvedDayCount: 0,
+        tickets: 0,
+        resolvedTickets: 0,
+        wins: 0,
+        stake: 0,
+        payout: 0,
+        unresolvedTickets: 0,
+      },
+    ]),
+  )
+
+  for (const dayTickets of byDay.values()) {
+    const bucketKey = intensityBucketKey(dayTickets.length)
+    const entry = base.get(bucketKey)
+    if (!entry) continue
+
+    const resolved = dayTickets.filter((ticket) => ticket.status === 'win' || ticket.status === 'loss')
+    const wins = resolved.filter((ticket) => ticket.status === 'win')
+    const dayStake = resolved.reduce((sum, ticket) => sum + toNumber(ticket.stake), 0)
+    const dayPayout = resolved.reduce((sum, ticket) => sum + toNumber(ticket.payout), 0)
+
+    entry.dayCount += 1
+    entry.tickets += dayTickets.length
+    entry.resolvedTickets += resolved.length
+    entry.wins += wins.length
+    entry.stake += dayStake
+    entry.payout += dayPayout
+    entry.unresolvedTickets += dayTickets.length - resolved.length
+    if (resolved.length > 0) entry.resolvedDayCount += 1
+  }
+
+  return orderedBuckets.map((bucketKey) => {
+    const entry = base.get(bucketKey)!
+    const profit = entry.payout - entry.stake
+    const roi = entry.stake > 0 ? (profit / entry.stake) * 100 : 0
+    const winRate = entry.resolvedTickets > 0 ? (entry.wins / entry.resolvedTickets) * 100 : 0
+    const avgStakePerDay = entry.resolvedDayCount > 0 ? entry.stake / entry.resolvedDayCount : 0
+
+    return {
+      bucketKey,
+      bucketLabel: intensityBucketLabel(bucketKey),
+      dayCount: entry.dayCount,
+      resolvedDayCount: entry.resolvedDayCount,
+      tickets: entry.tickets,
+      resolvedTickets: entry.resolvedTickets,
+      wins: entry.wins,
+      winRate,
+      stake: entry.stake,
+      payout: entry.payout,
+      profit,
+      roi,
+      avgStakePerDay,
+      unresolvedTickets: entry.unresolvedTickets,
+      reliability: getReliability(entry.dayCount),
+    }
+  })
 }
 
 function buildMonthlyBettingStats(tickets: TicketRecord[]): MonthlyBettingStat[] {
@@ -964,6 +1084,7 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
       monthlyCashflowStats: buildMonthlyCashflowStats(filteredFinanceTransactions, filteredTickets),
       weekdayPerformance,
       oddsRangePerformance,
+      dailyIntensityPerformance: buildDailyIntensityPerformance(filteredTickets),
       streakStats,
     }
   } catch (error) {
@@ -1007,6 +1128,7 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
       monthlyCashflowStats: [],
       weekdayPerformance: [],
       oddsRangePerformance: [],
+      dailyIntensityPerformance: [],
       streakStats: {
         currentWin: 0,
         currentLoss: 0,
@@ -1226,6 +1348,7 @@ export default async function StatisticsPage({
         monthlyCashflowStats={stats.monthlyCashflowStats}
         weekdayPerformance={stats.weekdayPerformance}
         oddsRangePerformance={stats.oddsRangePerformance}
+        dailyIntensityPerformance={stats.dailyIntensityPerformance}
         streakStats={stats.streakStats}
         quickStats={stats.quickStats}
         minTips={stats.minTips}

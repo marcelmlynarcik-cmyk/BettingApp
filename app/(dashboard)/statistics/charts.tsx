@@ -88,6 +88,24 @@ type OddsRangePerformanceStat = {
   yield: number
 }
 
+type DailyIntensityPerformanceStat = {
+  bucketKey: '1' | '2' | '3' | '4+'
+  bucketLabel: string
+  dayCount: number
+  resolvedDayCount: number
+  tickets: number
+  resolvedTickets: number
+  wins: number
+  winRate: number
+  stake: number
+  payout: number
+  profit: number
+  roi: number
+  avgStakePerDay: number
+  unresolvedTickets: number
+  reliability: 'Nízka' | 'Stredná' | 'Vysoká'
+}
+
 type StreakStats = {
   currentWin: number
   currentLoss: number
@@ -109,6 +127,7 @@ interface StatisticsChartsProps {
   monthlyCashflowStats: MonthlyCashflowStat[]
   weekdayPerformance: WeekdayPerformanceStat[]
   oddsRangePerformance: OddsRangePerformanceStat[]
+  dailyIntensityPerformance: DailyIntensityPerformanceStat[]
   streakStats: StreakStats
   quickStats: {
     avgWinningOdds: number
@@ -363,6 +382,7 @@ export function StatisticsCharts({
   monthlyCashflowStats,
   weekdayPerformance,
   oddsRangePerformance,
+  dailyIntensityPerformance,
   streakStats,
   quickStats,
   minTips,
@@ -388,6 +408,17 @@ export function StatisticsCharts({
     rank: `#${index + 1}`,
     shortLabel: `${formatDate(ticket.date)} • ${ticket.odds.toFixed(2)}`,
   }))
+  const intensityRows = dailyIntensityPerformance.filter((row) => row.dayCount > 0)
+  const intensityResolvedRows = intensityRows.filter((row) => row.resolvedTickets > 0)
+  const bestIntensityRow = [...intensityResolvedRows].sort((a, b) => b.roi - a.roi || b.dayCount - a.dayCount)[0]
+  const weakestIntensityRow = [...intensityResolvedRows].sort((a, b) => a.roi - b.roi || b.dayCount - a.dayCount)[0]
+  const recommendedIntensityRows = intensityResolvedRows.filter((row) => row.roi > 0 && (row.reliability === 'Stredná' || row.reliability === 'Vysoká'))
+  const intensityRecommendation = recommendedIntensityRows.length > 0
+    ? `Držať sa ${recommendedIntensityRows.map((row) => row.bucketLabel.replace('/deň', '')).join(' / ')}`
+    : 'Zatiaľ bez stabilného odporúčania'
+  const totalIntensityDays = intensityRows.reduce((sum, row) => sum + row.dayCount, 0)
+  const totalIntensityResolvedTickets = intensityRows.reduce((sum, row) => sum + row.resolvedTickets, 0)
+  const lowDataIntensityBuckets = intensityRows.filter((row) => row.dayCount < 10).length
 
   return (
     <div className="space-y-4">
@@ -700,6 +731,141 @@ export function StatisticsCharts({
                 <EmptySection text="V tomto období nie sú dáta pre kurzové pásma." />
               )}
             </div>
+          </DashboardCard>
+
+          <DashboardCard
+            title="Výkon podľa dennej intenzity"
+            subtitle="Buckety podľa počtu podaných tiketov v jeden deň (1 / 2 / 3 / 4+)"
+            className="lg:col-span-2"
+          >
+            {intensityRows.length > 0 ? (
+              <div className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="rounded-lg border border-border bg-muted/20 p-3">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Najlepší bucket</p>
+                    <p className="mt-1 text-sm font-black text-card-foreground">{bestIntensityRow?.bucketLabel || '-'}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      ROI {bestIntensityRow ? `${bestIntensityRow.roi >= 0 ? '+' : ''}${bestIntensityRow.roi.toFixed(1)}%` : '-'}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-muted/20 p-3">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Vzorka dní</p>
+                    <p className="mt-1 text-sm font-black text-card-foreground">{totalIntensityDays}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{totalIntensityResolvedTickets} uzavretých tiketov</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-muted/20 p-3">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Odporúčanie</p>
+                    <p className="mt-1 text-sm font-black text-card-foreground">{intensityRecommendation}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-muted/20 p-3">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Nízka spoľahlivosť</p>
+                    <p className="mt-1 text-sm font-black text-card-foreground">{lowDataIntensityBuckets}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">bucketov pod 10 dní</p>
+                  </div>
+                </div>
+
+                <div className={cn('h-64', chartSurfaceClass)}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={dailyIntensityPerformance} margin={{ top: 8, right: 8, left: 0, bottom: 6 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                      <XAxis dataKey="bucketKey" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${Number(v).toFixed(0)}%`} />
+                      <ReferenceLine y={0} stroke="hsl(var(--border))" />
+                      <Tooltip
+                        formatter={(value: number, _name, props) => {
+                          const p = props?.payload as DailyIntensityPerformanceStat
+                          return [`${value.toFixed(1)}%`, `ROI • ${p.resolvedTickets} uzavretých tiketov`]
+                        }}
+                        labelFormatter={(label, payload) => {
+                          const p = payload?.[0]?.payload as DailyIntensityPerformanceStat | undefined
+                          if (!p) return String(label)
+                          return `${p.bucketLabel} • ${p.dayCount} dní`
+                        }}
+                      />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                      <Bar dataKey="roi" name="ROI" radius={[4, 4, 0, 0]}>
+                        {dailyIntensityPerformance.map((entry) => {
+                          let fill = 'hsl(160, 70%, 40%)'
+                          if (entry.dayCount < 10) fill = 'hsl(214, 14%, 68%)'
+                          else if (entry.roi < 0) fill = 'hsl(10, 72%, 55%)'
+                          return <Cell key={entry.bucketKey} fill={fill} />
+                        })}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="overflow-x-auto rounded-lg border border-border">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-muted/30 text-xs uppercase tracking-wider text-muted-foreground">
+                      <tr>
+                        <th className="px-3 py-2 text-left">Bucket</th>
+                        <th className="px-3 py-2 text-right">Dní</th>
+                        <th className="px-3 py-2 text-right">Tiketov</th>
+                        <th className="px-3 py-2 text-right">Win rate</th>
+                        <th className="px-3 py-2 text-right">Profit</th>
+                        <th className="px-3 py-2 text-right">ROI</th>
+                        <th className="px-3 py-2 text-right">Avg stake/deň</th>
+                        <th className="px-3 py-2 text-center">Spoľahlivosť</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...dailyIntensityPerformance]
+                        .sort((a, b) => b.roi - a.roi || b.dayCount - a.dayCount)
+                        .map((row) => (
+                          <tr key={row.bucketKey} className="border-t border-border/70">
+                            <td className="px-3 py-2 font-semibold text-foreground">{row.bucketLabel}</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{row.dayCount}</td>
+                            <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                              {row.tickets}
+                              {row.unresolvedTickets > 0 ? (
+                                <span className="ml-1 text-[11px] text-muted-foreground/80">({row.unresolvedTickets} pending)</span>
+                              ) : null}
+                            </td>
+                            <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{row.winRate.toFixed(1)}%</td>
+                            <td className={cn('px-3 py-2 text-right tabular-nums font-semibold', row.profit >= 0 ? 'text-emerald-600' : 'text-rose-600')}>
+                              {formatCurrency(row.profit)}
+                            </td>
+                            <td className={cn('px-3 py-2 text-right tabular-nums font-semibold', row.roi >= 0 ? 'text-emerald-600' : 'text-rose-600')}>
+                              {row.roi >= 0 ? '+' : ''}{row.roi.toFixed(1)}%
+                            </td>
+                            <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{row.avgStakePerDay.toFixed(0)} Kč</td>
+                            <td className="px-3 py-2 text-center">
+                              <span
+                                className={cn(
+                                  'rounded-full border px-2 py-0.5 text-[11px] font-semibold',
+                                  row.reliability === 'Vysoká' && 'border-emerald-300/70 bg-emerald-500/10 text-emerald-700',
+                                  row.reliability === 'Stredná' && 'border-amber-300/70 bg-amber-500/10 text-amber-700',
+                                  row.reliability === 'Nízka' && 'border-slate-300/70 bg-slate-500/10 text-slate-700',
+                                )}
+                              >
+                                {row.reliability}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                  <p>
+                    {bestIntensityRow
+                      ? `Najlepšie vychádza režim ${bestIntensityRow.bucketLabel} (ROI ${bestIntensityRow.roi >= 0 ? '+' : ''}${bestIntensityRow.roi.toFixed(1)}%, ${bestIntensityRow.dayCount} dní).`
+                      : 'Najlepší bucket zatiaľ nie je možné určiť z uzavretých tiketov.'}
+                    {' '}
+                    {weakestIntensityRow
+                      ? `Najslabší je ${weakestIntensityRow.bucketLabel} (ROI ${weakestIntensityRow.roi >= 0 ? '+' : ''}${weakestIntensityRow.roi.toFixed(1)}%, ${weakestIntensityRow.dayCount} dní).`
+                      : ''}
+                  </p>
+                  <p className="mt-1">
+                    Bucket je podľa počtu podaných tiketov za deň, KPI (win rate/profit/ROI) sú počítané z uzavretých tiketov.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <EmptySection text="V tomto období zatiaľ nie sú dni s podanými tiketmi." />
+            )}
           </DashboardCard>
         </div>
       </details>
