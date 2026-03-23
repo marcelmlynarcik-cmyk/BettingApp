@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { registerAndSyncPushSubscription } from '@/lib/push-subscription-client'
+import { ensurePushSubscriptionHealthy, registerAndSyncPushSubscription } from '@/lib/push-subscription-client'
 
 type PermissionState = NotificationPermission | 'unsupported'
 
@@ -70,7 +70,43 @@ export function PushNotificationBanner() {
     }
   }
 
-  if (permission === 'granted') return null
+  const repairNotifications = async () => {
+    setIsLoading(true)
+    try {
+      const ok = await ensurePushSubscriptionHealthy({ force: true })
+      if (ok) {
+        setStatusMessage('Push token bol obnovený.')
+        toast.success('Push token obnovený')
+      } else {
+        setStatusMessage('Push token sa nepodarilo obnoviť.')
+        toast.error('Obnova push tokenu zlyhala')
+      }
+    } catch (error) {
+      console.error('Push token refresh failed:', error)
+      setStatusMessage('Push token sa nepodarilo obnoviť.')
+      toast.error('Obnova push tokenu zlyhala')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  if (permission === 'granted') {
+    return (
+      <section className="mb-4 rounded-xl border border-border bg-card p-3 md:p-4">
+        <p className="text-sm font-semibold text-card-foreground">Push notifikácie sú aktívne</p>
+        <p className="mt-1 text-xs text-muted-foreground">Ak sa notifikácie nedoručujú spoľahlivo, obnov push token.</p>
+        <button
+          type="button"
+          onClick={repairNotifications}
+          disabled={isLoading}
+          className="mt-3 rounded-lg bg-secondary px-3 py-2 text-xs font-bold text-secondary-foreground disabled:opacity-70"
+        >
+          {isLoading ? 'Obnovujem...' : 'Obnoviť push token'}
+        </button>
+        {statusMessage ? <p className="mt-2 text-xs text-muted-foreground">{statusMessage}</p> : null}
+      </section>
+    )
+  }
 
   return (
     <section className="mb-4 rounded-xl border border-border bg-card p-3 md:p-4">

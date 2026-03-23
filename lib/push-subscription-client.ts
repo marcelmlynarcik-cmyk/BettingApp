@@ -14,6 +14,8 @@ function urlBase64ToUint8Array(base64String: string) {
 }
 
 let cachedVapidPublicKey: string | null = null
+const SUBSCRIPTION_SYNC_STORAGE_KEY = 'bettracker.push.last-sync'
+const SUBSCRIPTION_SYNC_MAX_AGE_MS = 12 * 60 * 60 * 1000
 
 async function getVapidPublicKey() {
   if (cachedVapidPublicKey) return cachedVapidPublicKey
@@ -114,6 +116,31 @@ async function syncSubscription(subscription: PushSubscription) {
   }
 }
 
+function readLastSync() {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage.getItem(SUBSCRIPTION_SYNC_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { endpoint?: string; syncedAt?: number }
+    if (!parsed?.endpoint || typeof parsed.syncedAt !== 'number') return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function writeLastSync(endpoint: string) {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(
+      SUBSCRIPTION_SYNC_STORAGE_KEY,
+      JSON.stringify({ endpoint, syncedAt: Date.now() }),
+    )
+  } catch {
+    // ignore storage write failures
+  }
+}
+
 export async function registerAndSyncPushSubscription() {
   if (typeof window === 'undefined') return false
   if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
@@ -135,6 +162,7 @@ export async function registerAndSyncPushSubscription() {
 
   try {
     await syncSubscription(subscription)
+    writeLastSync(subscription.endpoint)
   } catch {
     // Fallback for stale/invalid browser subscription state.
     try {
@@ -148,6 +176,7 @@ export async function registerAndSyncPushSubscription() {
       applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
     })
     await syncSubscription(freshSubscription)
+    writeLastSync(freshSubscription.endpoint)
   }
 
   return true
@@ -189,6 +218,45 @@ export async function refreshPushSubscription() {
   }
 
   await syncSubscription(subscription)
+  writeLastSync(subscription.endpoint)
 
   return true
+}
+
+export async function ensurePushSubscriptionHealthy(options?: { force?: boolean }) {
+  if (typeof window === 'undefined') return false
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+    return false
+  }
+  if (Notification.permission !== 'granted') return false
+
+  await navigator.serviceWorker.register('/sw.js')
+  const registration = await navigator.serviceWorker.ready
+
+  let subscription = await registration.pushManager.getSubscription()
+  if (!subscription) {
+    return registerAndSyncPushSubscription()
+  }
+
+  const force = options?.force === true
+  const lastSync = readLastSync()
+  const isRecentlySynced =
+    !force &&
+    lastSync?.endpoint === subscription.endpoint &&
+    Date.now() - lastSync.syncedAt < SUBSCRIPTION_SYNC_MAX_AGE_MS
+
+  if (isRecentlySynced) return true
+
+  try {
+    await syncSubscription(subscription)
+    writeLastSync(subscription.endpoint)
+    return true
+  } catch {
+    const recovered = await refreshPushSubscription()
+    subscription = await registration.pushManager.getSubscription()
+    if (recovered && subscription) {
+      writeLastSync(subscription.endpoint)
+    }
+    return recovered
+  }
 }
