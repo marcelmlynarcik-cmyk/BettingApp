@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { ensurePushSubscriptionHealthy, registerAndSyncPushSubscription } from '@/lib/push-subscription-client'
+import { registerAndSyncPushSubscription } from '@/lib/push-subscription-client'
 
 type PermissionState = NotificationPermission | 'unsupported'
 
@@ -70,47 +70,7 @@ export function PushNotificationBanner() {
     }
   }
 
-  const repairNotifications = async () => {
-    setIsLoading(true)
-    try {
-      const ok = await ensurePushSubscriptionHealthy({ force: true })
-      if (ok) {
-        setStatusMessage('Push token bol obnovený.')
-        toast.success('Push token obnovený')
-      } else {
-        setStatusMessage('Push token sa nepodarilo obnoviť.')
-        toast.error('Obnova push tokenu zlyhala')
-      }
-    } catch (error) {
-      console.error('Push token refresh failed:', error)
-      setStatusMessage('Push token sa nepodarilo obnoviť.')
-      toast.error('Obnova push tokenu zlyhala')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  if (permission === 'granted') {
-    return (
-      <details className="mb-4 rounded-xl border border-border/70 bg-card/50 p-2">
-        <summary className="cursor-pointer list-none text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Push notifikácie sú aktívne • pokročilé
-        </summary>
-        <div className="mt-2 rounded-lg border border-border bg-card p-3">
-          <p className="text-xs text-muted-foreground">Ak sa notifikácie nedoručujú spoľahlivo, obnov push token.</p>
-          <button
-            type="button"
-            onClick={repairNotifications}
-            disabled={isLoading}
-            className="mt-3 rounded-lg bg-secondary px-3 py-2 text-xs font-bold text-secondary-foreground disabled:opacity-70"
-          >
-            {isLoading ? 'Obnovujem...' : 'Obnoviť push token'}
-          </button>
-          {statusMessage ? <p className="mt-2 text-xs text-muted-foreground">{statusMessage}</p> : null}
-        </div>
-      </details>
-    )
-  }
+  if (permission === 'granted') return null
 
   return (
     <section className="mb-4 rounded-xl border border-border bg-card p-3 md:p-4">
