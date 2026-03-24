@@ -131,3 +131,27 @@
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes rankingTickerLoop {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.ranking-ticker-track {
+  animation: rankingTickerLoop 48s linear infinite;
+  will-change: transform;
+}
+
+.ranking-ticker-track:hover {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ranking-ticker-track {
+    animation: none;
+  }
+}
