@@ -3,13 +3,14 @@
 type RankingTickerItem = {
   userId: string
   userName: string
-  roi: number
+  winRate: number
+  averageOdds: number
   netProfit: number
   okTips: number
 }
 
-function formatYield(value: number) {
-  return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`
+function formatWinRate(value: number) {
+  return `${value.toFixed(1)}%`
 }
 
 function formatProfit(value: number) {
@@ -34,7 +35,8 @@ export function RankingTicker({ items }: { items: RankingTickerItem[] }) {
             <span className="text-muted-foreground">#{(index % items.length) + 1}</span>
             <span>{item.userName}</span>
             <span className="text-sky-700">OK {item.okTips}</span>
-            <span className={item.roi >= 0 ? 'text-emerald-600' : 'text-rose-600'}>ROI {formatYield(item.roi)}</span>
+            <span className="text-muted-foreground">Ø {item.averageOdds.toFixed(2)}</span>
+            <span className="text-primary">WR {formatWinRate(item.winRate)}</span>
             <span className={item.netProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}>Zisk {formatProfit(item.netProfit)}</span>
           </span>
         ))}
