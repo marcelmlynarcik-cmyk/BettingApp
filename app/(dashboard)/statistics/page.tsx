@@ -190,6 +190,11 @@ type StatisticsData = {
   weekdayPerformance: WeekdayPerformanceStat[]
   oddsRangePerformance: OddsRangePerformanceStat[]
   dailyIntensityPerformance: DailyIntensityPerformanceStat[]
+  dailyIntensityPerformanceByWeekday: Array<{
+    dayKey: number
+    dayLabel: string
+    rows: DailyIntensityPerformanceStat[]
+  }>
   streakStats: StreakStats
 }
 
@@ -449,15 +454,7 @@ function computeStreakStats(tickets: TicketRecord[]): StreakStats {
 }
 
 function buildWeekdayPerformance(tickets: TicketRecord[]): WeekdayPerformanceStat[] {
-  const orderedDays = [
-    { dayKey: 1, dayLabel: 'Po' },
-    { dayKey: 2, dayLabel: 'Ut' },
-    { dayKey: 3, dayLabel: 'St' },
-    { dayKey: 4, dayLabel: 'Št' },
-    { dayKey: 5, dayLabel: 'Pi' },
-    { dayKey: 6, dayLabel: 'So' },
-    { dayKey: 0, dayLabel: 'Ne' },
-  ]
+  const orderedDays = getOrderedWeekdays()
 
   const base = orderedDays.map(({ dayLabel, dayKey }) => ({
     dayKey,
@@ -542,15 +539,28 @@ function intensityBucketLabel(bucketKey: DailyIntensityPerformanceStat['bucketKe
   return '4+ tiketov/deň'
 }
 
+function getOrderedWeekdays() {
+  return [
+    { dayKey: 1, dayLabel: 'Po' },
+    { dayKey: 2, dayLabel: 'Ut' },
+    { dayKey: 3, dayLabel: 'St' },
+    { dayKey: 4, dayLabel: 'Št' },
+    { dayKey: 5, dayLabel: 'Pi' },
+    { dayKey: 6, dayLabel: 'So' },
+    { dayKey: 0, dayLabel: 'Ne' },
+  ]
+}
+
 function getReliability(dayCount: number): DailyIntensityPerformanceStat['reliability'] {
   if (dayCount >= 30) return 'Vysoká'
   if (dayCount >= 10) return 'Stredná'
   return 'Nízka'
 }
 
-function buildDailyIntensityPerformance(tickets: TicketRecord[]): DailyIntensityPerformanceStat[] {
+function buildDailyIntensityPerformance(tickets: TicketRecord[], weekdayFilter: number | null = null): DailyIntensityPerformanceStat[] {
   const byDay = new Map<string, TicketRecord[]>()
   for (const ticket of tickets) {
+    if (weekdayFilter !== null && new Date(ticket.date).getDay() !== weekdayFilter) continue
     const list = byDay.get(ticket.date) || []
     list.push(ticket)
     byDay.set(ticket.date, list)
@@ -627,6 +637,14 @@ function buildDailyIntensityPerformance(tickets: TicketRecord[]): DailyIntensity
       reliability: getReliability(entry.dayCount),
     }
   })
+}
+
+function buildDailyIntensityPerformanceByWeekday(tickets: TicketRecord[]) {
+  return getOrderedWeekdays().map((day) => ({
+    dayKey: day.dayKey,
+    dayLabel: day.dayLabel,
+    rows: buildDailyIntensityPerformance(tickets, day.dayKey),
+  }))
 }
 
 function buildMonthlyBettingStats(tickets: TicketRecord[]): MonthlyBettingStat[] {
@@ -1085,6 +1103,7 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
       weekdayPerformance,
       oddsRangePerformance,
       dailyIntensityPerformance: buildDailyIntensityPerformance(filteredTickets),
+      dailyIntensityPerformanceByWeekday: buildDailyIntensityPerformanceByWeekday(filteredTickets),
       streakStats,
     }
   } catch (error) {
@@ -1129,6 +1148,7 @@ async function getStatistics(period: PeriodKey, minTips: number): Promise<Statis
       weekdayPerformance: [],
       oddsRangePerformance: [],
       dailyIntensityPerformance: [],
+      dailyIntensityPerformanceByWeekday: [],
       streakStats: {
         currentWin: 0,
         currentLoss: 0,
@@ -1349,6 +1369,7 @@ export default async function StatisticsPage({
         weekdayPerformance={stats.weekdayPerformance}
         oddsRangePerformance={stats.oddsRangePerformance}
         dailyIntensityPerformance={stats.dailyIntensityPerformance}
+        dailyIntensityPerformanceByWeekday={stats.dailyIntensityPerformanceByWeekday}
         streakStats={stats.streakStats}
         quickStats={stats.quickStats}
         minTips={stats.minTips}

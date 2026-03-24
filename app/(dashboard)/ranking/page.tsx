@@ -66,7 +66,7 @@ type MonthlyOddsWinner = {
   context: string
 }
 
-type MilestoneMetric = 'teamTickets' | 'teamProfit' | 'teamTurnover' | 'okTips' | 'hitRate' | 'wonOdds'
+type MilestoneMetric = 'teamTickets' | 'teamWonTickets' | 'teamProfit' | 'teamTurnover' | 'okTips' | 'hitRate' | 'wonOdds'
 
 type MilestoneEvent = {
   userId: string
@@ -96,6 +96,13 @@ type UserMilestoneProgress = {
 
 type TeamTicketProgress = {
   totalTickets: number
+  nextMilestone: number | null
+  progressPct: number
+  reachedMilestones: Array<{ value: number; achievedAt: string }>
+}
+
+type TeamWonTicketProgress = {
+  totalWonTickets: number
   nextMilestone: number | null
   progressPct: number
   reachedMilestones: Array<{ value: number; achievedAt: string }>
@@ -240,6 +247,7 @@ function formatYield(value: number) {
 
 function getMetricLabel(metric: MilestoneMetric) {
   if (metric === 'teamTickets') return 'spoločných tiketov'
+  if (metric === 'teamWonTickets') return 'uhádnutých tímových tiketov'
   if (metric === 'teamProfit') return 'tímového profitu'
   if (metric === 'teamTurnover') return 'prestávkovaných peňazí tímu'
   if (metric === 'hitRate') return 'úspešnosti'
@@ -655,6 +663,37 @@ async function getRankingData() {
     reachedMilestones: teamReachedMilestones,
   }
 
+  const teamWonTicketReachedMilestones: Array<{ value: number; achievedAt: string }> = []
+  let teamWonTicketMilestoneIndex = 0
+  let wonTicketsCount = 0
+
+  for (const ticket of sortedTickets) {
+    const status = normalizeResult(ticket.status)
+    if (status !== 'WIN') continue
+
+    wonTicketsCount += 1
+    while (teamWonTicketMilestoneIndex < TICKET_MILESTONES.length && wonTicketsCount >= TICKET_MILESTONES[teamWonTicketMilestoneIndex]) {
+      const milestone = TICKET_MILESTONES[teamWonTicketMilestoneIndex]
+      teamWonTicketReachedMilestones.push({ value: milestone, achievedAt: ticket.date })
+      milestoneEvents.push({
+        userId: 'team',
+        userName: 'Tím',
+        metric: 'teamWonTickets',
+        milestone,
+        achievedAt: ticket.date,
+      })
+      teamWonTicketMilestoneIndex += 1
+    }
+  }
+
+  const teamWonTicketProgressValue = getProgressToNext(wonTicketsCount, TICKET_MILESTONES)
+  const teamWonTicketProgress: TeamWonTicketProgress = {
+    totalWonTickets: wonTicketsCount,
+    nextMilestone: teamWonTicketProgressValue.next,
+    progressPct: teamWonTicketProgressValue.pct,
+    reachedMilestones: teamWonTicketReachedMilestones,
+  }
+
   const teamProfitReachedMilestones: Array<{ value: number; achievedAt: string }> = []
   let teamProfitMilestoneIndex = 0
   let teamCumulativeProfit = 0
@@ -747,6 +786,7 @@ async function getRankingData() {
     userMilestoneProgress,
     milestoneEvents,
     teamTicketProgress,
+    teamWonTicketProgress,
     teamProfitMilestoneProgress,
     teamTurnoverMilestoneProgress,
   }
@@ -761,6 +801,7 @@ export default async function RankingPage() {
     userMilestoneProgress,
     milestoneEvents,
     teamTicketProgress,
+    teamWonTicketProgress,
     teamProfitMilestoneProgress,
     teamTurnoverMilestoneProgress,
   } = await getRankingData()
@@ -919,7 +960,7 @@ export default async function RankingPage() {
           </h3>
           <p className="text-xs text-muted-foreground">zdieľaný cieľ pre všetkých</p>
         </div>
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-xl border border-border/70 bg-card/70 p-3">
             <div className="mb-2 flex items-center justify-between text-sm">
               <p className="font-semibold text-card-foreground">Spolu podaných tiketov: {teamTicketProgress.totalTickets}</p>
@@ -941,6 +982,32 @@ export default async function RankingPage() {
                 >
                   <Calendar className="h-3 w-3" />
                   {item.value} tiketov ({fullDateLabel(item.achievedAt)})
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border/70 bg-card/70 p-3">
+            <div className="mb-2 flex items-center justify-between text-sm">
+              <p className="font-semibold text-card-foreground">Uhádnuté tikety: {teamWonTicketProgress.totalWonTickets}</p>
+              <p className="text-muted-foreground">
+                {teamWonTicketProgress.nextMilestone ? `ďalší cieľ ${teamWonTicketProgress.nextMilestone}` : 'max level'}
+              </p>
+            </div>
+            <div className="h-2.5 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-teal-400 to-emerald-600"
+                style={{ width: `${teamWonTicketProgress.progressPct}%` }}
+              />
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {teamWonTicketProgress.reachedMilestones.slice(-3).map((item) => (
+                <span
+                  key={`team-won-ticket-${item.value}-${item.achievedAt}`}
+                  className="inline-flex items-center gap-1 rounded-full border border-teal-500/25 bg-teal-500/10 px-2 py-0.5 text-[11px] font-semibold text-teal-700"
+                >
+                  <Calendar className="h-3 w-3" />
+                  {item.value} výherných ({fullDateLabel(item.achievedAt)})
                 </span>
               ))}
             </div>

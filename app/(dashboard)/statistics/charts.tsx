@@ -1,7 +1,7 @@
 'use client'
 
 import { cn } from '@/lib/utils'
-import type { ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import {
   Area,
   AreaChart,
@@ -128,6 +128,11 @@ interface StatisticsChartsProps {
   weekdayPerformance: WeekdayPerformanceStat[]
   oddsRangePerformance: OddsRangePerformanceStat[]
   dailyIntensityPerformance: DailyIntensityPerformanceStat[]
+  dailyIntensityPerformanceByWeekday: Array<{
+    dayKey: number
+    dayLabel: string
+    rows: DailyIntensityPerformanceStat[]
+  }>
   streakStats: StreakStats
   quickStats: {
     avgWinningOdds: number
@@ -383,10 +388,33 @@ export function StatisticsCharts({
   weekdayPerformance,
   oddsRangePerformance,
   dailyIntensityPerformance,
+  dailyIntensityPerformanceByWeekday,
   streakStats,
   quickStats,
   minTips,
 }: StatisticsChartsProps) {
+  const currentJsDay = new Date().getDay()
+  const [selectedIntensityDay, setSelectedIntensityDay] = useState<number>(currentJsDay)
+  const orderedWeekdays = useMemo(
+    () => (
+      dailyIntensityPerformanceByWeekday.length > 0
+        ? dailyIntensityPerformanceByWeekday
+        : [
+            { dayKey: 1, dayLabel: 'Po', rows: dailyIntensityPerformance },
+            { dayKey: 2, dayLabel: 'Ut', rows: [] },
+            { dayKey: 3, dayLabel: 'St', rows: [] },
+            { dayKey: 4, dayLabel: 'Št', rows: [] },
+            { dayKey: 5, dayLabel: 'Pi', rows: [] },
+            { dayKey: 6, dayLabel: 'So', rows: [] },
+            { dayKey: 0, dayLabel: 'Ne', rows: [] },
+          ]
+    ),
+    [dailyIntensityPerformance, dailyIntensityPerformanceByWeekday],
+  )
+  const selectedIntensityEntry = orderedWeekdays.find((day) => day.dayKey === selectedIntensityDay) || orderedWeekdays[0]
+  const selectedIntensityRows = selectedIntensityEntry?.rows || []
+  const selectedIntensityDayLabel = selectedIntensityEntry?.dayLabel || '-'
+
   const sortedByWinRate = [...tipperInsights].sort((a, b) => b.winRate - a.winRate)
   const sortedByAvgOdds = [...tipperInsights].sort((a, b) => b.avgOdds - a.avgOdds)
   const sortedByHighestWonOdds = [...tipperInsights].sort((a, b) => b.highestWonOdds - a.highestWonOdds)
@@ -408,7 +436,7 @@ export function StatisticsCharts({
     rank: `#${index + 1}`,
     shortLabel: `${formatDate(ticket.date)} • ${ticket.odds.toFixed(2)}`,
   }))
-  const intensityRows = dailyIntensityPerformance.filter((row) => row.dayCount > 0)
+  const intensityRows = selectedIntensityRows.filter((row) => row.dayCount > 0)
   const intensityResolvedRows = intensityRows.filter((row) => row.resolvedTickets > 0)
   const bestIntensityRow = [...intensityResolvedRows].sort((a, b) => b.roi - a.roi || b.dayCount - a.dayCount)[0]
   const weakestIntensityRow = [...intensityResolvedRows].sort((a, b) => a.roi - b.roi || b.dayCount - a.dayCount)[0]
@@ -734,11 +762,37 @@ export function StatisticsCharts({
 
           <DashboardCard
             title="Výkon podľa dennej intenzity"
-            subtitle="Buckety podľa počtu podaných tiketov v jeden deň (1 / 2 / 3 / 4+)"
+            subtitle={`Buckety podľa počtu podaných tiketov v jeden deň (1 / 2 / 3 / 4+) • ${selectedIntensityDayLabel}`}
             className="lg:col-span-2"
           >
-            {intensityRows.length > 0 ? (
+            {orderedWeekdays.length > 0 ? (
               <div className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  {orderedWeekdays.map((day) => {
+                    const isActive = day.dayKey === selectedIntensityDay
+                    const hasData = day.rows.some((row) => row.dayCount > 0)
+
+                    return (
+                      <button
+                        key={`intensity-day-${day.dayKey}`}
+                        type="button"
+                        onClick={() => setSelectedIntensityDay(day.dayKey)}
+                        className={cn(
+                          'rounded-md border px-2.5 py-1 text-xs font-bold uppercase tracking-wider transition-colors',
+                          isActive
+                            ? 'border-slate-900 bg-slate-900 text-white'
+                            : 'border-border bg-card text-muted-foreground hover:bg-secondary',
+                          !hasData && !isActive && 'opacity-70',
+                        )}
+                      >
+                        {day.dayLabel}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {intensityRows.length > 0 ? (
+                  <>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   <div className="rounded-lg border border-border bg-muted/20 p-3">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Najlepší bucket</p>
@@ -760,7 +814,7 @@ export function StatisticsCharts({
 
                 <div className={cn('h-64', chartSurfaceClass)}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={dailyIntensityPerformance} margin={{ top: 8, right: 8, left: 0, bottom: 6 }}>
+                    <BarChart data={selectedIntensityRows} margin={{ top: 8, right: 8, left: 0, bottom: 6 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                       <XAxis dataKey="bucketKey" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
                       <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => `${Number(v).toFixed(0)}%`} />
@@ -778,7 +832,7 @@ export function StatisticsCharts({
                       />
                       <Legend wrapperStyle={{ fontSize: 11 }} />
                       <Bar dataKey="roi" name="ROI" radius={[4, 4, 0, 0]}>
-                        {dailyIntensityPerformance.map((entry) => {
+                        {selectedIntensityRows.map((entry) => {
                           let fill = 'hsl(160, 70%, 40%)'
                           if (entry.dayCount < 10) fill = 'hsl(214, 14%, 68%)'
                           else if (entry.roi < 0) fill = 'hsl(10, 72%, 55%)'
@@ -790,7 +844,7 @@ export function StatisticsCharts({
                 </div>
 
                 <div className="space-y-2 md:hidden">
-                  {[...dailyIntensityPerformance]
+                  {[...selectedIntensityRows]
                     .sort((a, b) => b.roi - a.roi || b.dayCount - a.dayCount)
                     .map((row) => (
                       <div key={`mobile-${row.bucketKey}`} className="rounded-lg border border-border bg-muted/10 p-3">
@@ -840,7 +894,7 @@ export function StatisticsCharts({
                       </tr>
                     </thead>
                     <tbody>
-                      {[...dailyIntensityPerformance]
+                      {[...selectedIntensityRows]
                         .sort((a, b) => b.roi - a.roi || b.dayCount - a.dayCount)
                         .map((row) => (
                           <tr key={row.bucketKey} className="border-t border-border/70">
@@ -892,6 +946,10 @@ export function StatisticsCharts({
                     Bucket je podľa počtu podaných tiketov za deň, KPI (win rate/profit/ROI) sú počítané z uzavretých tiketov.
                   </p>
                 </div>
+                  </>
+                ) : (
+                  <EmptySection text={`Pre deň ${selectedIntensityDayLabel} zatiaľ nie sú dni s podanými tiketmi.`} />
+                )}
               </div>
             ) : (
               <EmptySection text="V tomto období zatiaľ nie sú dni s podanými tiketmi." />
