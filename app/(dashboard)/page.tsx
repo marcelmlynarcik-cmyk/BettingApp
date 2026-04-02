@@ -2,17 +2,12 @@ import { format } from 'date-fns'
 import Link from 'next/link'
 import {
   ArrowRight,
-  CalendarDays,
   CircleAlert,
   Clock3,
   Flame,
-  Gauge,
   LineChart,
   Plus,
   Sparkles,
-  Target,
-  TrendingUp,
-  Trophy,
   Wallet,
   Zap,
 } from 'lucide-react'
@@ -57,22 +52,12 @@ type TrendPoint = {
   label: string
   bankroll: number
   dayProfit: number
-  stake: number
-  payout: number
 }
 
 type InsightItem = {
   title: string
   description: string
   tone: 'emerald' | 'sky' | 'amber'
-}
-
-type ActivityItem = {
-  id: string
-  title: string
-  subtitle: string
-  amountLabel: string
-  tone: 'emerald' | 'rose' | 'amber' | 'sky'
 }
 
 type DashboardData = {
@@ -85,11 +70,8 @@ type DashboardData = {
   openTickets: number
   todayOrPendingTickets: number
   recentTickets: TicketType[]
-  pendingTickets: TicketType[]
-  resolvedTodayTickets: TicketType[]
   trend: TrendPoint[]
   insights: InsightItem[]
-  activity: ActivityItem[]
   totalOpenExposure: number
   highConfidencePending: number
   bestPerformer: TipperOverview | null
@@ -120,10 +102,6 @@ function formatCurrency(value: number, withSign = false) {
 
 function formatPercent(value: number, digits = 1) {
   return `${value.toFixed(digits)}%`
-}
-
-function formatCompactDate(value: string) {
-  return format(new Date(value), 'd. MMM')
 }
 
 function toNumber(value: unknown) {
@@ -220,10 +198,9 @@ function SmallTrend({
   )
 }
 
-function toneClasses(tone: InsightItem['tone'] | ActivityItem['tone']) {
+function toneClasses(tone: InsightItem['tone']) {
   if (tone === 'emerald') return 'border-emerald-500/20 bg-emerald-500/[0.08] text-emerald-700'
   if (tone === 'sky') return 'border-sky-500/20 bg-sky-500/[0.08] text-sky-700'
-  if (tone === 'rose') return 'border-rose-500/20 bg-rose-500/[0.08] text-rose-700'
   return 'border-amber-500/20 bg-amber-500/[0.08] text-amber-700'
 }
 
@@ -483,15 +460,13 @@ async function getDashboardData(): Promise<DashboardData> {
       label: format(day, 'd. MMMM'),
       bankroll: rollingBankroll,
       dayProfit,
-      stake,
-      payout,
     })
   }
 
   const bestPerformer = monthlyLeaderboard[0] || null
   const insights: InsightItem[] = [
     {
-      title: 'Open exposure',
+      title: 'Koľko máš práve rozbehnuté',
       description:
         openTickets > 0
           ? `Otvorených je ${openTickets} tiketov za ${formatCurrency(totalOpenExposure)}. Potenciál výplaty je ${formatCurrency(pendingPotentialWins)}.`
@@ -506,48 +481,13 @@ async function getDashboardData(): Promise<DashboardData> {
       tone: 'emerald',
     },
     {
-      title: 'Momentum dňa',
+      title: 'Ako ide dnešok',
       description: todayProfit === 0
         ? 'Dnešok je zatiaľ bez uzavretého zisku alebo straty, dashboard sleduje hlavne pending flow.'
         : `Dnešný výsledok je ${formatCurrency(todayProfit, true)} oproti včerajšku ${formatCurrency(todayProfit - yesterdayProfit, true)}.`,
       tone: 'sky',
     },
   ]
-
-  const activity: ActivityItem[] = [...allTicketsSafe]
-    .sort((a, b) => {
-      const aTime = new Date(a.created_at || a.date).getTime()
-      const bTime = new Date(b.created_at || b.date).getTime()
-      return bTime - aTime
-    })
-    .slice(0, 6)
-    .map((ticket) => {
-      if (ticket.status === 'win') {
-        return {
-          id: ticket.id,
-          title: ticket.description || `Výherný tiket ${formatCompactDate(ticket.date)}`,
-          subtitle: `${formatCompactDate(ticket.date)} • uzavreté so ziskom`,
-          amountLabel: formatCurrency(Number(ticket.payout || 0) - Number(ticket.stake || 0), true),
-          tone: 'emerald' as const,
-        }
-      }
-      if (ticket.status === 'loss') {
-        return {
-          id: ticket.id,
-          title: ticket.description || `Prehraný tiket ${formatCompactDate(ticket.date)}`,
-          subtitle: `${formatCompactDate(ticket.date)} • uzavreté stratou`,
-          amountLabel: formatCurrency(-(Number(ticket.stake || 0)), true),
-          tone: 'rose' as const,
-        }
-      }
-      return {
-        id: ticket.id,
-        title: ticket.description || `Pending tiket ${formatCompactDate(ticket.date)}`,
-        subtitle: `${formatCompactDate(ticket.date)} • čaká na vyhodnotenie`,
-        amountLabel: formatCurrency(Number(ticket.possible_win || 0)),
-        tone: 'amber' as const,
-      }
-    })
 
   return {
     stats,
@@ -559,11 +499,8 @@ async function getDashboardData(): Promise<DashboardData> {
     openTickets,
     todayOrPendingTickets,
     recentTickets,
-    pendingTickets: recentTickets.filter((ticket) => ticket.status === 'pending'),
-    resolvedTodayTickets: recentTickets.filter((ticket) => ticket.date === todayKey && ticket.status !== 'pending'),
     trend,
     insights,
-    activity,
     totalOpenExposure,
     highConfidencePending,
     bestPerformer,
@@ -583,7 +520,6 @@ export default async function OverviewPage() {
     todayOrPendingTickets,
     trend,
     insights,
-    activity,
     totalOpenExposure,
     highConfidencePending,
     bestPerformer,
@@ -591,10 +527,6 @@ export default async function OverviewPage() {
 
   const trendValues = trend.map((point) => point.bankroll)
   const trendDelta = trend.length > 1 ? trend[trend.length - 1].bankroll - trend[0].bankroll : 0
-  const featuredTickets = [
-    ...recentTickets.filter((ticket) => ticket.status === 'pending'),
-    ...recentTickets.filter((ticket) => ticket.status !== 'pending'),
-  ].slice(0, 3)
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -606,18 +538,18 @@ export default async function OverviewPage() {
           <div className="space-y-5">
             <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/15 bg-white/[0.08] px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-white/80 backdrop-blur">
               <Sparkles className="h-3.5 w-3.5" />
-              Mission control
+              Hlavný prehľad
             </div>
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-3">
                 <h1 className="text-3xl font-black tracking-tight md:text-5xl">Prehľad</h1>
                 <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-100">
-                  Live stav bankrollu
+                  Aktuálny stav účtu
                 </span>
               </div>
               <p className="max-w-2xl text-sm font-medium leading-6 text-slate-200 md:text-base">
-                Dnes si {formatCurrency(todayProfit, true)}, otvorených je {openTickets} tiketov a dashboard sleduje formu tipérov,
-                momentum a pending riziko na jednom mieste.
+                Dnes si {formatCurrency(todayProfit, true)}, otvorených je {openTickets} tiketov a na jednom mieste vidíš,
+                koľko máš rozbehnuté, ako sa darí a ako vyzerá vývoj účtu za posledné dni.
               </p>
             </div>
 
@@ -632,18 +564,18 @@ export default async function OverviewPage() {
                 </div>
                 <div className="mt-4 grid gap-2 sm:grid-cols-3">
                   <div className="rounded-2xl border border-white/10 bg-black/10 px-3 py-2">
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-white/50">30d trend</p>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-white/50">Zmena za 14 dní</p>
                     <p className={`mt-1 text-sm font-bold ${trendDelta >= 0 ? 'text-emerald-200' : 'text-rose-200'}`}>
                       {formatCurrency(trendDelta, true)}
                     </p>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-black/10 px-3 py-2">
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-white/50">Open exposure</p>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-white/50">Rozbehnuté peniaze</p>
                     <p className="mt-1 text-sm font-bold text-amber-100">{formatCurrency(totalOpenExposure)}</p>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-black/10 px-3 py-2">
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-white/50">High confidence</p>
-                    <p className="mt-1 text-sm font-bold text-cyan-100">{highConfidencePending} pending</p>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-white/50">Sľubné otvorené tikety</p>
+                    <p className="mt-1 text-sm font-bold text-cyan-100">{highConfidencePending} tiketov</p>
                   </div>
                 </div>
               </div>
@@ -736,13 +668,13 @@ export default async function OverviewPage() {
             <div>
               <p className="inline-flex items-center gap-2 rounded-full border border-sky-500/20 bg-sky-500/[0.08] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-sky-700">
                 <Clock3 className="h-3.5 w-3.5" />
-                Dnes a live stav
+                Dnešný stav
               </p>
               <h2 className="mt-3 text-xl font-black tracking-tight text-card-foreground">Čo sa deje práve teraz</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Rýchly prehľad flowu, rizika a rozdielu oproti včerajšku.</p>
+              <p className="mt-1 text-sm text-muted-foreground">Jednoduchý prehľad toho, ako si na tom dnes a čo máš ešte otvorené.</p>
             </div>
             <span className="rounded-full border border-border/70 bg-muted/30 px-3 py-1 text-xs font-semibold text-muted-foreground">
-              {todayOrPendingTickets} dnešných alebo open tiketov
+              {todayOrPendingTickets} dnešných alebo otvorených tiketov
             </span>
           </div>
 
@@ -755,17 +687,17 @@ export default async function OverviewPage() {
               <p className="mt-1 text-xs text-muted-foreground">vs. včera {formatCurrency(todayProfit - yesterdayProfit, true)}</p>
             </div>
             <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-card to-amber-500/[0.06] p-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Pending riziko</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Rozbehnuté peniaze</p>
               <p className="mt-2 text-2xl font-black text-amber-700">{formatCurrency(totalOpenExposure)}</p>
               <p className="mt-1 text-xs text-muted-foreground">{openTickets} tiketov čaká na výsledok</p>
             </div>
             <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-card to-cyan-500/[0.06] p-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Šanca s edge</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Sľubné otvorené tikety</p>
               <p className="mt-2 text-2xl font-black text-sky-700">{highConfidencePending}</p>
-              <p className="mt-1 text-xs text-muted-foreground">pending tiketov s vyššou confidence</p>
+              <p className="mt-1 text-xs text-muted-foreground">otvorených tiketov s lepšou šancou na úspech</p>
             </div>
             <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-card to-violet-500/[0.06] p-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Top forma</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Najlepšie sa darí</p>
               <p className="mt-2 truncate text-2xl font-black text-card-foreground">
                 {bestPerformer?.user_name || 'Bez dát'}
               </p>
@@ -787,12 +719,10 @@ export default async function OverviewPage() {
                   <p className="text-[11px] font-bold uppercase tracking-[0.22em]">{insight.title}</p>
                   <p className="mt-2 text-sm font-medium leading-6 text-card-foreground">{insight.description}</p>
                 </div>
-                {insight.tone === 'emerald' ? (
-                  <Trophy className="h-5 w-5 shrink-0" />
-                ) : insight.tone === 'sky' ? (
-                  <TrendingUp className="h-5 w-5 shrink-0" />
-                ) : (
+                {insight.tone === 'amber' ? (
                   <CircleAlert className="h-5 w-5 shrink-0" />
+                ) : (
+                  <Sparkles className="h-5 w-5 shrink-0" />
                 )}
               </div>
             </article>
@@ -806,7 +736,7 @@ export default async function OverviewPage() {
             <div>
               <p className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/[0.08] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-700">
                 <LineChart className="h-3.5 w-3.5" />
-                Bankroll trend
+                Vývoj účtu
               </p>
               <h2 className="mt-3 text-xl font-black tracking-tight text-card-foreground">Vývoj bankrollu za posledných 14 dní</h2>
             </div>
@@ -899,67 +829,20 @@ export default async function OverviewPage() {
         </article>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+      <section className="grid gap-4">
         <article className="rounded-[26px] border border-border/80 bg-card/90 p-5 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/[0.08] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-700">
-                <Target className="h-3.5 w-3.5" />
-                Ticket spotlight
+                <Sparkles className="h-3.5 w-3.5" />
+                Tikety
               </p>
-              <h2 className="mt-3 text-xl font-black tracking-tight text-card-foreground">Dnešné a najdôležitejšie tikety</h2>
+              <h2 className="mt-3 text-xl font-black tracking-tight text-card-foreground">Dnešné a otvorené tikety</h2>
             </div>
             <Link href="/tickets" className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-700 hover:text-emerald-600">
               Všetky tikety
               <ArrowRight className="h-4 w-4" />
             </Link>
-          </div>
-
-          <div className="mt-5 grid gap-3 md:grid-cols-3">
-            {featuredTickets.map((ticket) => (
-              <div key={`spotlight-${ticket.id}`} className="rounded-[22px] border border-border/70 bg-gradient-to-br from-card via-card to-muted/15 p-4">
-                <div className="flex items-center justify-between gap-2">
-                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] ${
-                    ticket.status === 'win'
-                      ? 'bg-emerald-500/10 text-emerald-700'
-                      : ticket.status === 'loss'
-                        ? 'bg-rose-500/10 text-rose-700'
-                        : 'bg-amber-500/10 text-amber-700'
-                  }`}>
-                    {ticket.status === 'win' ? 'Výhra' : ticket.status === 'loss' ? 'Prehra' : 'Pending'}
-                  </span>
-                  <span className="text-xs font-semibold text-muted-foreground">{formatCompactDate(ticket.date)}</span>
-                </div>
-                <p className="mt-3 line-clamp-2 text-sm font-bold text-card-foreground">
-                  {ticket.description || `Tiket ${formatCompactDate(ticket.date)}`}
-                </p>
-                <div className="mt-4 space-y-2 text-xs text-muted-foreground">
-                  <div className="flex items-center justify-between">
-                    <span>Kurz</span>
-                    <span className="font-semibold text-card-foreground">{Number(ticket.combined_odds || 0).toFixed(2)}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Stake</span>
-                    <span className="font-semibold text-card-foreground">{formatCurrency(Number(ticket.stake || 0))}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Šanca</span>
-                    <span className="font-semibold text-cyan-700">
-                      {typeof ticket.estimated_win_probability === 'number'
-                        ? formatPercent(ticket.estimated_win_probability * 100)
-                        : 'Nedostatok dát'}
-                    </span>
-                  </div>
-                </div>
-                <Link
-                  href={`/tickets/${ticket.id}`}
-                  className="mt-4 inline-flex items-center gap-1 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.08] px-3 py-2 text-xs font-semibold text-emerald-700"
-                >
-                  Detail
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
-              </div>
-            ))}
           </div>
 
           <div className="mt-5 grid gap-3">
@@ -977,69 +860,6 @@ export default async function OverviewPage() {
             ) : (
               recentTickets.map((ticket) => <TicketCard key={ticket.id} ticket={ticket} expandable />)
             )}
-          </div>
-        </article>
-
-        <article className="rounded-[26px] border border-border/80 bg-card/90 p-5 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="inline-flex items-center gap-2 rounded-full border border-violet-500/20 bg-violet-500/[0.08] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-700">
-                <CalendarDays className="h-3.5 w-3.5" />
-                Activity feed
-              </p>
-              <h2 className="mt-3 text-xl font-black tracking-tight text-card-foreground">Posledné udalosti</h2>
-            </div>
-            <span className="text-xs font-semibold text-muted-foreground">auto z tiketov</span>
-          </div>
-
-          <div className="mt-5 space-y-3">
-            {activity.map((item) => (
-              <div key={item.id} className="flex items-start gap-3 rounded-[22px] border border-border/70 bg-gradient-to-br from-card via-card to-muted/15 p-4">
-                <div className={`mt-0.5 rounded-2xl border p-2 ${toneClasses(item.tone)}`}>
-                  {item.tone === 'emerald' ? (
-                    <Trophy className="h-4 w-4" />
-                  ) : item.tone === 'rose' ? (
-                    <CircleAlert className="h-4 w-4" />
-                  ) : item.tone === 'sky' ? (
-                    <TrendingUp className="h-4 w-4" />
-                  ) : (
-                    <Clock3 className="h-4 w-4" />
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-card-foreground">{item.title}</p>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.subtitle}</p>
-                    </div>
-                    <p className={`shrink-0 text-xs font-semibold ${item.tone === 'emerald' ? 'text-emerald-600' : item.tone === 'rose' ? 'text-rose-600' : item.tone === 'sky' ? 'text-sky-600' : 'text-amber-600'}`}>
-                      {item.amountLabel}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-5 rounded-[22px] border border-border/70 bg-gradient-to-br from-slate-50 to-white p-4">
-            <div className="flex items-center gap-2">
-              <Gauge className="h-4 w-4 text-slate-700" />
-              <p className="text-sm font-bold text-slate-900">Quick pulse</p>
-            </div>
-            <div className="mt-3 grid gap-2 text-sm text-slate-700">
-              <p className="flex items-center justify-between rounded-xl border border-slate-200 bg-white/80 px-3 py-2">
-                <span>Vyhraté tikety</span>
-                <span className="font-bold">{stats.winning_tickets}</span>
-              </p>
-              <p className="flex items-center justify-between rounded-xl border border-slate-200 bg-white/80 px-3 py-2">
-                <span>Prehraté tikety</span>
-                <span className="font-bold">{stats.losing_tickets}</span>
-              </p>
-              <p className="flex items-center justify-between rounded-xl border border-slate-200 bg-white/80 px-3 py-2">
-                <span>Čakajúce tikety</span>
-                <span className="font-bold">{stats.pending_tickets}</span>
-              </p>
-            </div>
           </div>
         </article>
       </section>
