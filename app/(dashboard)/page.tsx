@@ -487,7 +487,10 @@ export default async function OverviewPage() {
   const trendDelta = trend.length > 1 ? trend[trend.length - 1].bankroll - trend[0].bankroll : 0
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="relative mx-auto max-w-7xl space-y-6">
+      <div className="pointer-events-none absolute inset-x-8 top-8 -z-10 h-64 rounded-full bg-emerald-400/10 blur-3xl" />
+      <div className="pointer-events-none absolute right-0 top-[28rem] -z-10 h-72 w-72 rounded-full bg-cyan-400/10 blur-3xl" />
+      <div className="pointer-events-none absolute left-8 top-[62rem] -z-10 h-72 w-72 rounded-full bg-amber-300/10 blur-3xl" />
       <section className="relative overflow-hidden rounded-[28px] border border-border/80 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-5 text-white shadow-[0_30px_80px_rgba(15,23,42,0.28)] md:p-7">
         <div className="absolute -right-16 -top-14 h-48 w-48 rounded-full bg-emerald-400/20 blur-3xl" />
         <div className="absolute left-1/3 top-1/2 h-40 w-40 rounded-full bg-cyan-400/15 blur-3xl" />
@@ -641,42 +644,42 @@ export default async function OverviewPage() {
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
+      <section className="grid gap-4">
         <article className="rounded-[26px] border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-5 text-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.08] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-200">
-                <LineChart className="h-3.5 w-3.5" />
-                Vývoj účtu
+              <p className="inline-flex items-center gap-2 rounded-full border border-cyan-400/15 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-100">
+                <Sparkles className="h-3.5 w-3.5" />
+                Tikety
               </p>
-              <h2 className="mt-3 text-xl font-black tracking-tight text-white">Vývoj bankrollu za posledných 14 dní</h2>
+              <h2 className="mt-3 text-xl font-black tracking-tight text-white">Dnešné a otvorené tikety</h2>
             </div>
-            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${trendDelta >= 0 ? 'bg-emerald-400/10 text-emerald-200' : 'bg-rose-400/10 text-rose-200'}`}>
-              {formatCurrency(trendDelta, true)}
-            </span>
+            <Link href="/tickets" className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-200 hover:text-emerald-100">
+              Všetky tikety
+              <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
 
-          <div className="mt-5 rounded-[24px] border border-white/10 bg-white/[0.06] p-4">
-            <TrendSparkline
-              values={trendValues}
-              positiveClassName="stroke-emerald-500"
-              negativeClassName="stroke-rose-500"
-              height={180}
-            />
-            <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-white/65 sm:grid-cols-4 md:grid-cols-7 xl:grid-cols-7">
-              {trend.map((point) => (
-                <div key={point.key} className="space-y-1 rounded-xl border border-white/10 bg-black/10 px-2 py-2 text-center">
-                  <p className="font-semibold uppercase">{point.shortLabel}</p>
-                  <p className={point.dayProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
-                    {point.dayProfit >= 0 ? '+' : ''}
-                    {Math.round(point.dayProfit)}
-                  </p>
-                </div>
-              ))}
-            </div>
+          <div className="mt-5 grid gap-3">
+            {recentTickets.length === 0 ? (
+              <div className="rounded-[24px] border border-dashed border-white/15 bg-white/[0.04] p-12 text-center">
+                <p className="font-medium text-white/70">Nemáš dnešné ani otvorené tikety.</p>
+                <Link
+                  href="/tickets"
+                  className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-sm font-semibold text-emerald-100"
+                >
+                  Pridať tiket
+                  <Plus className="h-4 w-4" />
+                </Link>
+              </div>
+            ) : (
+              recentTickets.map((ticket) => <TicketCard key={ticket.id} ticket={ticket} expandable />)
+            )}
           </div>
         </article>
+      </section>
 
+      <section className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
         <article className="rounded-[26px] border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-5 text-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -748,39 +751,39 @@ export default async function OverviewPage() {
             ))}
           </div>
         </article>
-      </section>
 
-      <section className="grid gap-4">
-        <article className="rounded-[26px] border border-border/80 bg-card/90 p-5 shadow-sm">
+        <article className="rounded-[26px] border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-5 text-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/[0.08] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-700">
-                <Sparkles className="h-3.5 w-3.5" />
-                Tikety
+              <p className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.08] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-200">
+                <LineChart className="h-3.5 w-3.5" />
+                Vývoj účtu
               </p>
-              <h2 className="mt-3 text-xl font-black tracking-tight text-card-foreground">Dnešné a otvorené tikety</h2>
+              <h2 className="mt-3 text-xl font-black tracking-tight text-white">Vývoj bankrollu za posledných 14 dní</h2>
             </div>
-            <Link href="/tickets" className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-700 hover:text-emerald-600">
-              Všetky tikety
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${trendDelta >= 0 ? 'bg-emerald-400/10 text-emerald-200' : 'bg-rose-400/10 text-rose-200'}`}>
+              {formatCurrency(trendDelta, true)}
+            </span>
           </div>
 
-          <div className="mt-5 grid gap-3">
-            {recentTickets.length === 0 ? (
-              <div className="rounded-[24px] border border-dashed border-border/80 bg-muted/20 p-12 text-center">
-                <p className="font-medium text-muted-foreground">Nemáš dnešné ani otvorené tikety.</p>
-                <Link
-                  href="/tickets"
-                  className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.08] px-4 py-2 text-sm font-semibold text-emerald-700"
-                >
-                  Pridať tiket
-                  <Plus className="h-4 w-4" />
-                </Link>
-              </div>
-            ) : (
-              recentTickets.map((ticket) => <TicketCard key={ticket.id} ticket={ticket} expandable />)
-            )}
+          <div className="mt-5 rounded-[24px] border border-white/10 bg-white/[0.06] p-4">
+            <TrendSparkline
+              values={trendValues}
+              positiveClassName="stroke-emerald-500"
+              negativeClassName="stroke-rose-500"
+              height={180}
+            />
+            <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-white/65 sm:grid-cols-4 md:grid-cols-7 xl:grid-cols-7">
+              {trend.map((point) => (
+                <div key={point.key} className="space-y-1 rounded-xl border border-white/10 bg-black/10 px-2 py-2 text-center">
+                  <p className="font-semibold uppercase">{point.shortLabel}</p>
+                  <p className={point.dayProfit >= 0 ? 'text-emerald-300' : 'text-rose-300'}>
+                    {point.dayProfit >= 0 ? '+' : ''}
+                    {Math.round(point.dayProfit)}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </article>
       </section>

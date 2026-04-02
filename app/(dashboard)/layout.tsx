@@ -149,7 +149,7 @@ export default async function DashboardLayout({
   const rankingTickerItems = await getRankingTickerData()
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#ecfdf5_0%,#f8fafc_30%,#eef2ff_60%,#f8fafc_100%)]">
       <Sidebar />
       {/* Mobile: top header + bottom nav spacing */}
       {/* Desktop: left sidebar spacing */}
