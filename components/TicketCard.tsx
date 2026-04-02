@@ -107,7 +107,7 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
             <p className="text-sm font-semibold text-card-foreground">
               {ticket.description || `Tiket ${format(new Date(ticket.date), 'd.M.')}`}
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-card-foreground/75">
               {format(new Date(ticket.date), 'd. MMMM yyyy')}
               {showRelativeDate && <span> ({relativeDateLabel(ticket.date)})</span>}
               {' • '}
@@ -132,14 +132,14 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
                 ? (pendingAmount > 0 ? pendingAmount : ticket.stake).toFixed(0)
                 : ticket.stake.toFixed(0)} Kč
           </p>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          <p className="text-[10px] font-medium uppercase tracking-wider text-card-foreground/70">
             {ticket.status === 'pending' ? 'Možná výhra' : getStatusLabel(ticket.status)}
           </p>
         </div>
       </div>
 
       <div className="mt-3">
-        <p className="mb-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">Stav tipov</p>
+        <p className="mb-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-card-foreground/70">Stav tipov</p>
         <div className="grid grid-cols-3 gap-1 rounded-lg border border-border/70 bg-muted/30 p-1">
           {predictionSegments.map((result, index) => (
             <div
@@ -165,7 +165,7 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
         {expandable && predictions.length > 0 ? (
           <button
             onClick={() => setIsExpanded((prev) => !prev)}
-            className="inline-flex items-center justify-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-muted-foreground hover:bg-secondary"
+            className="inline-flex items-center justify-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-card-foreground/75 hover:bg-secondary"
           >
             {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             {isExpanded ? 'Skryť tipy' : `Tipy (${predictions.length})`}
@@ -212,7 +212,7 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
               >
                 <div>
                   <p className="text-xs font-semibold text-card-foreground">{userName}</p>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-[11px] text-card-foreground/75">
                     {prediction.sport?.name || 'Šport'} • {prediction.league?.name || 'Liga'}
                   </p>
                   {typeof prediction.estimated_win_probability === 'number' && (

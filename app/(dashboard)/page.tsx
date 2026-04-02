@@ -171,18 +171,17 @@ function TrendSparkline({
 
 function SmallTrend({
   values,
-  tone,
+  isPositive,
 }: {
   values: number[]
-  tone: 'emerald' | 'sky' | 'amber'
+  isPositive: boolean
 }) {
   if (values.length === 0) {
     return <div className="h-8 rounded-lg bg-muted/30" />
   }
 
   const { line } = buildSparklinePath(values, 96, 28)
-  const stroke =
-    tone === 'emerald' ? '#10b981' : tone === 'sky' ? '#0ea5e9' : '#f59e0b'
+  const stroke = isPositive ? '#10b981' : '#fb7185'
 
   return (
     <svg viewBox="0 0 96 28" className="h-8 w-24">
@@ -744,7 +743,7 @@ export default async function OverviewPage() {
                   </div>
                   <SmallTrend
                     values={user.trend.map((point) => point.value)}
-                    tone={index === 0 ? 'amber' : index === 1 ? 'sky' : 'emerald'}
+                    isPositive={user.yield >= 0}
                   />
                 </div>
               </div>
