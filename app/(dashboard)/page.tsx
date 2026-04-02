@@ -2,12 +2,13 @@ import { format } from 'date-fns'
 import Link from 'next/link'
 import {
   ArrowRight,
-  CircleAlert,
-  Clock3,
+  Award,
   Flame,
   LineChart,
+  Medal,
   Plus,
   Sparkles,
+  Trophy,
   Wallet,
   Zap,
 } from 'lucide-react'
@@ -54,12 +55,6 @@ type TrendPoint = {
   dayProfit: number
 }
 
-type InsightItem = {
-  title: string
-  description: string
-  tone: 'emerald' | 'sky' | 'amber'
-}
-
 type DashboardData = {
   stats: OverviewStats
   currentBankroll: number
@@ -68,10 +63,8 @@ type DashboardData = {
   todayProfit: number
   yesterdayProfit: number
   openTickets: number
-  todayOrPendingTickets: number
   recentTickets: TicketType[]
   trend: TrendPoint[]
-  insights: InsightItem[]
   totalOpenExposure: number
   highConfidencePending: number
   bestPerformer: TipperOverview | null
@@ -198,12 +191,6 @@ function SmallTrend({
   )
 }
 
-function toneClasses(tone: InsightItem['tone']) {
-  if (tone === 'emerald') return 'border-emerald-500/20 bg-emerald-500/[0.08] text-emerald-700'
-  if (tone === 'sky') return 'border-sky-500/20 bg-sky-500/[0.08] text-sky-700'
-  return 'border-amber-500/20 bg-amber-500/[0.08] text-amber-700'
-}
-
 async function getDashboardData(): Promise<DashboardData> {
   const supabase = await createClient()
   const now = new Date()
@@ -308,7 +295,6 @@ async function getDashboardData(): Promise<DashboardData> {
     .filter((ticket) => ticket.date === yesterdayKey && (ticket.status === 'win' || ticket.status === 'loss'))
     .reduce((sum, ticket) => sum + (Number(ticket.payout || 0) - Number(ticket.stake || 0)), 0)
   const openTickets = pendingTickets.length
-  const todayOrPendingTickets = allTicketsSafe.filter((ticket) => ticket.status === 'pending' || ticket.date === todayKey).length
   const ticketStakeById = new Map<string, number>(allTicketsSafe.map((ticket) => [ticket.id, Number(ticket.stake || 0)]))
 
   const monthlyLeaderboard: TipperOverview[] = safeUsers
@@ -464,30 +450,6 @@ async function getDashboardData(): Promise<DashboardData> {
   }
 
   const bestPerformer = monthlyLeaderboard[0] || null
-  const insights: InsightItem[] = [
-    {
-      title: 'Koľko máš práve rozbehnuté',
-      description:
-        openTickets > 0
-          ? `Otvorených je ${openTickets} tiketov za ${formatCurrency(totalOpenExposure)}. Potenciál výplaty je ${formatCurrency(pendingPotentialWins)}.`
-          : 'Momentálne nemáš otvorený žiadny tiket, takže bankroll nie je viazaný v pending pozíciách.',
-      tone: 'amber',
-    },
-    {
-      title: 'Najlepšia forma',
-      description: bestPerformer
-        ? `${bestPerformer.user_name} vedie mesiac s ${bestPerformer.wins} OK tipmi a yieldom ${formatPercent(bestPerformer.yield)}.`
-        : 'Zatiaľ nie sú dostupné mesačné dáta o forme tipérov.',
-      tone: 'emerald',
-    },
-    {
-      title: 'Ako ide dnešok',
-      description: todayProfit === 0
-        ? 'Dnešok je zatiaľ bez uzavretého zisku alebo straty, dashboard sleduje hlavne pending flow.'
-        : `Dnešný výsledok je ${formatCurrency(todayProfit, true)} oproti včerajšku ${formatCurrency(todayProfit - yesterdayProfit, true)}.`,
-      tone: 'sky',
-    },
-  ]
 
   return {
     stats,
@@ -497,10 +459,8 @@ async function getDashboardData(): Promise<DashboardData> {
     todayProfit,
     yesterdayProfit,
     openTickets,
-    todayOrPendingTickets,
     recentTickets,
     trend,
-    insights,
     totalOpenExposure,
     highConfidencePending,
     bestPerformer,
@@ -517,9 +477,7 @@ export default async function OverviewPage() {
     todayProfit,
     yesterdayProfit,
     openTickets,
-    todayOrPendingTickets,
     trend,
-    insights,
     totalOpenExposure,
     highConfidencePending,
     bestPerformer,
@@ -548,8 +506,8 @@ export default async function OverviewPage() {
                 </span>
               </div>
               <p className="max-w-2xl text-sm font-medium leading-6 text-slate-200 md:text-base">
-                Dnes si {formatCurrency(todayProfit, true)}, otvorených je {openTickets} tiketov a na jednom mieste vidíš,
-                koľko máš rozbehnuté, ako sa darí a ako vyzerá vývoj účtu za posledné dni.
+                Dnes máš výsledok {formatCurrency(todayProfit, true)}, otvorené sú {openTickets} tikety a na jednom mieste vidíš,
+                koľko máš rozbehnuté, komu sa aktuálne darí najviac a ako sa vyvíjal účet za posledné dni.
               </p>
             </div>
 
@@ -578,6 +536,27 @@ export default async function OverviewPage() {
                     <p className="mt-1 text-sm font-bold text-cyan-100">{highConfidencePending} tiketov</p>
                   </div>
                 </div>
+                <div className="mt-3 rounded-2xl border border-white/10 bg-black/10 px-3 py-3">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-white/50">Najviac sa darí</p>
+                  <div className="mt-1 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-white">
+                        {bestPerformer?.user_name || 'Zatiaľ bez dát'}
+                      </p>
+                      <p className="text-xs text-white/60">
+                        {bestPerformer
+                          ? `${bestPerformer.wins} správnych tipov • úspešnosť ${formatPercent(bestPerformer.win_rate)}`
+                          : 'Mesačné poradie sa zobrazí, keď budú dáta'}
+                      </p>
+                    </div>
+                    <div className="shrink-0 rounded-2xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-right">
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-amber-100/60">Výnos</p>
+                      <p className="text-sm font-black text-amber-100">
+                        {bestPerformer ? formatPercent(bestPerformer.yield) : '-'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="rounded-[24px] border border-white/10 bg-white/[0.08] p-4 backdrop-blur">
@@ -594,7 +573,7 @@ export default async function OverviewPage() {
                     negativeClassName="stroke-rose-300"
                   />
                 </div>
-                <div className="mt-2 flex items-center justify-between text-xs text-white/60">
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-white/60">
                   <span>{trend[0]?.label}</span>
                   <span>{trend[trend.length - 1]?.label}</span>
                 </div>
@@ -662,99 +641,31 @@ export default async function OverviewPage() {
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
-        <div className="rounded-[26px] border border-border/80 bg-card/90 p-5 shadow-sm backdrop-blur">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="inline-flex items-center gap-2 rounded-full border border-sky-500/20 bg-sky-500/[0.08] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-sky-700">
-                <Clock3 className="h-3.5 w-3.5" />
-                Dnešný stav
-              </p>
-              <h2 className="mt-3 text-xl font-black tracking-tight text-card-foreground">Čo sa deje práve teraz</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Jednoduchý prehľad toho, ako si na tom dnes a čo máš ešte otvorené.</p>
-            </div>
-            <span className="rounded-full border border-border/70 bg-muted/30 px-3 py-1 text-xs font-semibold text-muted-foreground">
-              {todayOrPendingTickets} dnešných alebo otvorených tiketov
-            </span>
-          </div>
-
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-card to-emerald-500/[0.06] p-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Dnešný výsledok</p>
-              <p className={`mt-2 text-2xl font-black ${todayProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                {formatCurrency(todayProfit, true)}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">vs. včera {formatCurrency(todayProfit - yesterdayProfit, true)}</p>
-            </div>
-            <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-card to-amber-500/[0.06] p-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Rozbehnuté peniaze</p>
-              <p className="mt-2 text-2xl font-black text-amber-700">{formatCurrency(totalOpenExposure)}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{openTickets} tiketov čaká na výsledok</p>
-            </div>
-            <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-card to-cyan-500/[0.06] p-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Sľubné otvorené tikety</p>
-              <p className="mt-2 text-2xl font-black text-sky-700">{highConfidencePending}</p>
-              <p className="mt-1 text-xs text-muted-foreground">otvorených tiketov s lepšou šancou na úspech</p>
-            </div>
-            <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-card to-violet-500/[0.06] p-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Najlepšie sa darí</p>
-              <p className="mt-2 truncate text-2xl font-black text-card-foreground">
-                {bestPerformer?.user_name || 'Bez dát'}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {bestPerformer ? `${bestPerformer.wins} OK • ${formatPercent(bestPerformer.yield)}` : 'Mesačný leaderboard ešte nemá dáta'}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid gap-4">
-          {insights.map((insight) => (
-            <article
-              key={insight.title}
-              className={`rounded-[24px] border p-4 shadow-sm ${toneClasses(insight.tone)}`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.22em]">{insight.title}</p>
-                  <p className="mt-2 text-sm font-medium leading-6 text-card-foreground">{insight.description}</p>
-                </div>
-                {insight.tone === 'amber' ? (
-                  <CircleAlert className="h-5 w-5 shrink-0" />
-                ) : (
-                  <Sparkles className="h-5 w-5 shrink-0" />
-                )}
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-
       <section className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
-        <article className="rounded-[26px] border border-border/80 bg-card/90 p-5 shadow-sm">
+        <article className="rounded-[26px] border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-5 text-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/[0.08] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-700">
+              <p className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.08] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-200">
                 <LineChart className="h-3.5 w-3.5" />
                 Vývoj účtu
               </p>
-              <h2 className="mt-3 text-xl font-black tracking-tight text-card-foreground">Vývoj bankrollu za posledných 14 dní</h2>
+              <h2 className="mt-3 text-xl font-black tracking-tight text-white">Vývoj bankrollu za posledných 14 dní</h2>
             </div>
-            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${trendDelta >= 0 ? 'bg-emerald-500/10 text-emerald-700' : 'bg-rose-500/10 text-rose-700'}`}>
+            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${trendDelta >= 0 ? 'bg-emerald-400/10 text-emerald-200' : 'bg-rose-400/10 text-rose-200'}`}>
               {formatCurrency(trendDelta, true)}
             </span>
           </div>
 
-          <div className="mt-5 rounded-[24px] border border-border/70 bg-gradient-to-b from-background to-muted/20 p-4">
+          <div className="mt-5 rounded-[24px] border border-white/10 bg-white/[0.06] p-4">
             <TrendSparkline
               values={trendValues}
               positiveClassName="stroke-emerald-500"
               negativeClassName="stroke-rose-500"
               height={180}
             />
-            <div className="mt-3 grid grid-cols-7 gap-2 text-[11px] text-muted-foreground md:grid-cols-14">
+            <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-white/65 sm:grid-cols-4 md:grid-cols-7 xl:grid-cols-7">
               {trend.map((point) => (
-                <div key={point.key} className="space-y-1 rounded-xl border border-border/60 bg-card/70 px-2 py-2 text-center">
+                <div key={point.key} className="space-y-1 rounded-xl border border-white/10 bg-black/10 px-2 py-2 text-center">
                   <p className="font-semibold uppercase">{point.shortLabel}</p>
                   <p className={point.dayProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
                     {point.dayProfit >= 0 ? '+' : ''}
@@ -766,16 +677,16 @@ export default async function OverviewPage() {
           </div>
         </article>
 
-        <article className="rounded-[26px] border border-border/80 bg-card/90 p-5 shadow-sm">
+        <article className="rounded-[26px] border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-5 text-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="inline-flex items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/[0.08] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-700">
+              <p className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.08] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200">
                 <Flame className="h-3.5 w-3.5" />
                 Forma tipérov
               </p>
-              <h2 className="mt-3 text-xl font-black tracking-tight text-card-foreground">Mesačný leaderboard</h2>
+              <h2 className="mt-3 text-xl font-black tracking-tight text-white">Mesačný leaderboard</h2>
             </div>
-            <Link href="/ranking" className="text-sm font-semibold text-emerald-700 hover:text-emerald-600">
+            <Link href="/ranking" className="text-sm font-semibold text-emerald-200 hover:text-emerald-100">
               Viac
             </Link>
           </div>
@@ -784,39 +695,49 @@ export default async function OverviewPage() {
             {monthlyLeaderboard.slice(0, 4).map((user, index) => (
               <div
                 key={user.user_id}
-                className="rounded-[22px] border border-border/70 bg-gradient-to-br from-card via-card to-muted/15 p-4"
+                className="rounded-[22px] border border-white/10 bg-white/[0.06] p-4"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <div className={`flex h-9 w-9 items-center justify-center rounded-2xl text-sm font-black ${
                         index === 0
-                          ? 'bg-amber-500/15 text-amber-700'
+                          ? 'bg-amber-400/15 text-amber-200'
                           : index === 1
-                            ? 'bg-slate-500/12 text-slate-700'
-                            : 'bg-emerald-500/10 text-emerald-700'
+                            ? 'bg-slate-300/12 text-slate-200'
+                            : index === 2
+                              ? 'bg-orange-400/12 text-orange-200'
+                              : 'bg-emerald-400/10 text-emerald-200'
                       }`}>
-                        {index + 1}
+                        {index === 0 ? (
+                          <Trophy className="h-4 w-4" />
+                        ) : index === 1 ? (
+                          <Medal className="h-4 w-4" />
+                        ) : index === 2 ? (
+                          <Award className="h-4 w-4" />
+                        ) : (
+                          index + 1
+                        )}
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-bold text-card-foreground">{user.user_name}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="truncate text-sm font-bold text-white">{user.user_name}</p>
+                        <p className="text-xs text-white/60">
                           {user.wins} OK • Ø {user.average_odds.toFixed(2)}
                         </p>
                       </div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-black text-card-foreground">{formatPercent(user.win_rate)}</p>
-                    <p className={user.total_profit >= 0 ? 'text-xs font-semibold text-emerald-600' : 'text-xs font-semibold text-rose-600'}>
+                    <p className="text-sm font-black text-white">{formatPercent(user.win_rate)}</p>
+                    <p className={user.total_profit >= 0 ? 'text-xs font-semibold text-emerald-300' : 'text-xs font-semibold text-rose-300'}>
                       {formatCurrency(user.total_profit, true)}
                     </p>
                   </div>
                 </div>
 
                 <div className="mt-3 flex items-center justify-between gap-3">
-                  <div className="text-xs text-muted-foreground">
-                    <p>Yield <span className={user.yield >= 0 ? 'font-semibold text-emerald-600' : 'font-semibold text-rose-600'}>{formatPercent(user.yield)}</span></p>
+                  <div className="text-xs text-white/60">
+                    <p>Yield <span className={user.yield >= 0 ? 'font-semibold text-emerald-300' : 'font-semibold text-rose-300'}>{formatPercent(user.yield)}</span></p>
                   </div>
                   <SmallTrend
                     values={user.trend.map((point) => point.value)}
