@@ -1,11 +1,24 @@
-import { createClient } from '@/lib/supabase/server'
-import { TicketCard } from '@/components/TicketCard'
-import { LeaderboardCard } from '@/components/LeaderboardCard'
+import { format } from 'date-fns'
+import Link from 'next/link'
 import {
   ArrowRight,
+  CalendarDays,
+  CircleAlert,
+  Clock3,
+  Flame,
+  Gauge,
+  LineChart,
+  Plus,
+  Sparkles,
+  Target,
+  TrendingUp,
+  Trophy,
+  Wallet,
+  Zap,
 } from 'lucide-react'
-import Link from 'next/link'
-import type { OverviewStats, UserStats, Ticket as TicketType } from '@/lib/types'
+import { createClient } from '@/lib/supabase/server'
+import { TicketCard } from '@/components/TicketCard'
+import type { OverviewStats, Ticket as TicketType } from '@/lib/types'
 import {
   buildProbabilityIndex,
   estimatePredictionProbability,
@@ -13,22 +26,231 @@ import {
   type ClosedPredictionRecord,
 } from '@/lib/ticket-probability'
 
-async function getDashboardData() {
+type FinanceTransactionRecord = {
+  amount: number | string | null
+  date: string
+  type: string | null
+}
+
+type TipperTrendPoint = {
+  label: string
+  value: number
+}
+
+type TipperOverview = {
+  user_id: string
+  user_name: string
+  total_predictions: number
+  wins: number
+  losses: number
+  pending: number
+  win_rate: number
+  total_profit: number
+  average_odds: number
+  yield: number
+  trend: TipperTrendPoint[]
+}
+
+type TrendPoint = {
+  key: string
+  shortLabel: string
+  label: string
+  bankroll: number
+  dayProfit: number
+  stake: number
+  payout: number
+}
+
+type InsightItem = {
+  title: string
+  description: string
+  tone: 'emerald' | 'sky' | 'amber'
+}
+
+type ActivityItem = {
+  id: string
+  title: string
+  subtitle: string
+  amountLabel: string
+  tone: 'emerald' | 'rose' | 'amber' | 'sky'
+}
+
+type DashboardData = {
+  stats: OverviewStats
+  currentBankroll: number
+  monthlyLeaderboard: TipperOverview[]
+  pendingPotentialWins: number
+  todayProfit: number
+  yesterdayProfit: number
+  openTickets: number
+  todayOrPendingTickets: number
+  recentTickets: TicketType[]
+  pendingTickets: TicketType[]
+  resolvedTodayTickets: TicketType[]
+  trend: TrendPoint[]
+  insights: InsightItem[]
+  activity: ActivityItem[]
+  totalOpenExposure: number
+  highConfidencePending: number
+  bestPerformer: TipperOverview | null
+}
+
+type UserRecord = { id: string; name: string }
+type PredictionRecord = {
+  user_id: string
+  ticket_id: string | null
+  result: string | null
+  odds: number | string | null
+  tip_date: string | null
+}
+
+const TREND_DAYS = 14
+
+function toDateKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+function formatCurrency(value: number, withSign = false) {
+  const formatted = Math.abs(value).toLocaleString('sk-SK', { maximumFractionDigits: 0 })
+  if (!withSign) return `${value.toLocaleString('sk-SK', { maximumFractionDigits: 0 })} Kč`
+  if (value > 0) return `+${formatted} Kč`
+  if (value < 0) return `-${formatted} Kč`
+  return '0 Kč'
+}
+
+function formatPercent(value: number, digits = 1) {
+  return `${value.toFixed(digits)}%`
+}
+
+function formatCompactDate(value: string) {
+  return format(new Date(value), 'd. MMM')
+}
+
+function toNumber(value: unknown) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+  const normalized = String(value ?? '').trim().replace(',', '.')
+  const parsed = Number.parseFloat(normalized)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function normalizeResult(value: unknown) {
+  return String(value ?? '').trim().toUpperCase()
+}
+
+function buildSparklinePath(values: number[], width: number, height: number) {
+  if (values.length === 0) return { line: '', area: '' }
+
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const range = max - min || 1
+
+  const points = values.map((value, index) => {
+    const x = (index / Math.max(values.length - 1, 1)) * width
+    const y = height - ((value - min) / range) * height
+    return { x, y }
+  })
+
+  const line = points
+    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
+    .join(' ')
+
+  const area = `${line} L ${width} ${height} L 0 ${height} Z`
+
+  return { line, area }
+}
+
+function TrendSparkline({
+  values,
+  positiveClassName,
+  negativeClassName,
+  height = 68,
+}: {
+  values: number[]
+  positiveClassName: string
+  negativeClassName: string
+  height?: number
+}) {
+  if (values.length === 0) {
+    return <div className="rounded-2xl border border-dashed border-border/70 bg-background/50" style={{ height }} />
+  }
+
+  const { line, area } = buildSparklinePath(values, 320, height - 10)
+  const trendUp = values[values.length - 1] >= values[0]
+
+  return (
+    <svg viewBox={`0 0 320 ${height}`} className="w-full" style={{ height }}>
+      <defs>
+        <linearGradient id="overview-spark-fill" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor={trendUp ? '#10b981' : '#fb7185'} stopOpacity="0.28" />
+          <stop offset="100%" stopColor={trendUp ? '#10b981' : '#fb7185'} stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill="url(#overview-spark-fill)" />
+      <path
+        d={line}
+        fill="none"
+        className={trendUp ? positiveClassName : negativeClassName}
+        strokeWidth="4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function SmallTrend({
+  values,
+  tone,
+}: {
+  values: number[]
+  tone: 'emerald' | 'sky' | 'amber'
+}) {
+  if (values.length === 0) {
+    return <div className="h-8 rounded-lg bg-muted/30" />
+  }
+
+  const { line } = buildSparklinePath(values, 96, 28)
+  const stroke =
+    tone === 'emerald' ? '#10b981' : tone === 'sky' ? '#0ea5e9' : '#f59e0b'
+
+  return (
+    <svg viewBox="0 0 96 28" className="h-8 w-24">
+      <path d={line} fill="none" stroke={stroke} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function toneClasses(tone: InsightItem['tone'] | ActivityItem['tone']) {
+  if (tone === 'emerald') return 'border-emerald-500/20 bg-emerald-500/[0.08] text-emerald-700'
+  if (tone === 'sky') return 'border-sky-500/20 bg-sky-500/[0.08] text-sky-700'
+  if (tone === 'rose') return 'border-rose-500/20 bg-rose-500/[0.08] text-rose-700'
+  return 'border-amber-500/20 bg-amber-500/[0.08] text-amber-700'
+}
+
+async function getDashboardData(): Promise<DashboardData> {
   const supabase = await createClient()
-  const toDateKey = (date: Date) =>
-    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
   const now = new Date()
   const todayKey = toDateKey(now)
   const yesterday = new Date(now)
   yesterday.setDate(yesterday.getDate() - 1)
   const yesterdayKey = toDateKey(yesterday)
-  
-  // Get all tickets for balance calculation (following user formula)
-  const { data: allTickets } = await supabase
-    .from('tickets')
-    .select('*, predictions(*)')
+  const firstDay = toDateKey(new Date(now.getFullYear(), now.getMonth(), 1))
+  const lastDay = toDateKey(new Date(now.getFullYear(), now.getMonth() + 1, 0))
+  const recentPredictionsStart = new Date(now)
+  recentPredictionsStart.setDate(recentPredictionsStart.getDate() - 27)
+  const recentPredictionsStartKey = toDateKey(recentPredictionsStart)
 
-  const [{ data: recentTicketsData }, { data: closedPredictions }] = await Promise.all([
+  const [
+    { data: allTickets },
+    { data: users },
+    { data: recentTicketsData },
+    { data: closedPredictions },
+    { data: monthlyPredictions },
+    { data: recentPerformancePredictions },
+    { data: financeTransactions },
+  ] = await Promise.all([
+    supabase.from('tickets').select('*, predictions(*)'),
+    supabase.from('users').select('*'),
     supabase
       .from('tickets')
       .select(`
@@ -42,128 +264,146 @@ async function getDashboardData() {
       `)
       .or(`status.eq.pending,date.eq.${todayKey}`)
       .order('created_at', { ascending: false })
-      .limit(5),
+      .limit(6),
     supabase
       .from('predictions')
       .select('user_id, sport_id, league_id, odds, result')
       .in('result', ['OK', 'NOK']),
+    supabase
+      .from('predictions')
+      .select('*')
+      .gte('tip_date', firstDay)
+      .lte('tip_date', lastDay),
+    supabase
+      .from('predictions')
+      .select('user_id, result, tip_date')
+      .gte('tip_date', recentPredictionsStartKey)
+      .lte('tip_date', todayKey),
+    supabase
+      .from('finance_transactions')
+      .select('amount, date, type')
+      .in('type', ['deposit', 'withdraw']),
   ])
 
-  // Get only deposit/withdraw transactions (following user formula)
-  const { data: cashflow } = await supabase
-    .from('finance_transactions')
-    .select('amount')
-    .in('type', ['deposit', 'withdraw'])
+  const allTicketsSafe = (allTickets || []) as TicketType[]
+  const safeUsers = (users || []) as UserRecord[]
+  const safeMonthlyPredictions = (monthlyPredictions || []) as PredictionRecord[]
+  const safeRecentPerformancePredictions = (recentPerformancePredictions || []) as PredictionRecord[]
+  const safeFinanceTransactions = (financeTransactions || []) as FinanceTransactionRecord[]
 
-  const totalPayouts = allTickets?.reduce((sum, t) => sum + Number(t.payout || 0), 0) || 0
-  const totalStakes = allTickets?.reduce((sum, t) => sum + Number(t.stake || 0), 0) || 0
-  const totalCashflow = cashflow?.reduce((sum, t) => sum + Number(t.amount || 0), 0) || 0
-
-  // Formula: SUM(Payouts) + SUM(Deposits/Withdrawals) - SUM(Stakes)
+  const totalPayouts = allTicketsSafe.reduce((sum, ticket) => sum + Number(ticket.payout || 0), 0)
+  const totalStakes = allTicketsSafe.reduce((sum, ticket) => sum + Number(ticket.stake || 0), 0)
+  const totalCashflow = safeFinanceTransactions.reduce((sum, tx) => sum + Number(tx.amount || 0), 0)
   const currentBankroll = totalPayouts + totalCashflow - totalStakes
 
-  // Get current month date range
-  const firstDay = toDateKey(new Date(now.getFullYear(), now.getMonth(), 1))
-  const lastDay = toDateKey(new Date(now.getFullYear(), now.getMonth() + 1, 0))
+  const stats: OverviewStats =
+    allTicketsSafe.length > 0
+      ? {
+          total_tickets: allTicketsSafe.length,
+          total_stake: allTicketsSafe.reduce((sum, ticket) => sum + Number(ticket.stake || 0), 0),
+          total_payout: allTicketsSafe.reduce((sum, ticket) => sum + Number(ticket.payout || 0), 0),
+          total_profit: allTicketsSafe.reduce((sum, ticket) => sum + (Number(ticket.payout || 0) - Number(ticket.stake || 0)), 0),
+          win_rate:
+            (allTicketsSafe.filter((ticket) => ticket.status === 'win').length /
+              allTicketsSafe.filter((ticket) => ticket.status !== 'pending').length || 0) * 100,
+          pending_tickets: allTicketsSafe.filter((ticket) => ticket.status === 'pending').length,
+          winning_tickets: allTicketsSafe.filter((ticket) => ticket.status === 'win').length,
+          losing_tickets: allTicketsSafe.filter((ticket) => ticket.status === 'loss').length,
+        }
+      : {
+          total_tickets: 0,
+          total_stake: 0,
+          total_payout: 0,
+          total_profit: 0,
+          win_rate: 0,
+          pending_tickets: 0,
+          winning_tickets: 0,
+          losing_tickets: 0,
+        }
 
-  // Get users
-  const { data: users } = await supabase.from('users').select('*')
-  
-  // Get predictions for current month
-  const { data: monthlyPredictions } = await supabase
-    .from('predictions')
-    .select('*')
-    .gte('tip_date', firstDay)
-    .lte('tip_date', lastDay)
-
-  const allTicketsSafe = allTickets || []
-
-  // Calculate Overview Stats using all tickets (same logic as statistics page)
-  const stats: OverviewStats = allTicketsSafe.length > 0 ? {
-    total_tickets: allTicketsSafe.length,
-    total_stake: allTicketsSafe.reduce((sum, t) => sum + Number(t.stake), 0),
-    total_payout: allTicketsSafe.reduce((sum, t) => sum + Number(t.payout), 0),
-    total_profit: allTicketsSafe.reduce((sum, t) => sum + (Number(t.payout) - Number(t.stake)), 0),
-    win_rate: (allTicketsSafe.filter(t => t.status === 'win').length / allTicketsSafe.filter(t => t.status !== 'pending').length || 0) * 100,
-    pending_tickets: allTicketsSafe.filter(t => t.status === 'pending').length,
-    winning_tickets: allTicketsSafe.filter(t => t.status === 'win').length,
-    losing_tickets: allTicketsSafe.filter(t => t.status === 'loss').length,
-  } : {
-    total_tickets: 0,
-    total_stake: 0,
-    total_payout: 0,
-    total_profit: 0,
-    win_rate: 0,
-    pending_tickets: 0,
-    winning_tickets: 0,
-    losing_tickets: 0,
-  }
-
-  const pendingPotentialWins = allTicketsSafe
-    .filter((t) => t.status === 'pending')
-    .reduce((sum, t) => sum + Number(t.possible_win || 0), 0)
-
+  const pendingTickets = allTicketsSafe.filter((ticket) => ticket.status === 'pending')
+  const pendingPotentialWins = pendingTickets.reduce((sum, ticket) => sum + Number(ticket.possible_win || 0), 0)
+  const totalOpenExposure = pendingTickets.reduce((sum, ticket) => sum + Number(ticket.stake || 0), 0)
   const todayProfit = allTicketsSafe
-    .filter((t) => t.date === todayKey && (t.status === 'win' || t.status === 'loss'))
-    .reduce((sum, t) => sum + (Number(t.payout || 0) - Number(t.stake || 0)), 0)
-
+    .filter((ticket) => ticket.date === todayKey && (ticket.status === 'win' || ticket.status === 'loss'))
+    .reduce((sum, ticket) => sum + (Number(ticket.payout || 0) - Number(ticket.stake || 0)), 0)
   const yesterdayProfit = allTicketsSafe
-    .filter((t) => t.date === yesterdayKey && (t.status === 'win' || t.status === 'loss'))
-    .reduce((sum, t) => sum + (Number(t.payout || 0) - Number(t.stake || 0)), 0)
-
-  const openTickets = allTicketsSafe.filter((t) => t.status === 'pending').length
-  const todayOrPendingTickets = allTicketsSafe.filter((t) => t.status === 'pending' || t.date === todayKey).length
+    .filter((ticket) => ticket.date === yesterdayKey && (ticket.status === 'win' || ticket.status === 'loss'))
+    .reduce((sum, ticket) => sum + (Number(ticket.payout || 0) - Number(ticket.stake || 0)), 0)
+  const openTickets = pendingTickets.length
+  const todayOrPendingTickets = allTicketsSafe.filter((ticket) => ticket.status === 'pending' || ticket.date === todayKey).length
   const ticketStakeById = new Map<string, number>(allTicketsSafe.map((ticket) => [ticket.id, Number(ticket.stake || 0)]))
 
-  // Calculate Monthly User Stats for Leaderboard
-  const monthlyLeaderboard = users?.map((user) => {
-    const userPreds = monthlyPredictions?.filter((p) => p.user_id === user.id) || []
-    const wins = userPreds.filter((p) => p.result === 'OK').length
-    const losses = userPreds.filter((p) => p.result === 'NOK').length
-    const completed = wins + losses
-    const win_rate = completed > 0 ? (wins / completed) * 100 : 0
-    const predictionCountByTicket = userPreds.reduce((acc, prediction) => {
-      if (!prediction.ticket_id) return acc
-      acc[prediction.ticket_id] = (acc[prediction.ticket_id] || 0) + 1
-      return acc
-    }, {} as Record<string, number>)
+  const monthlyLeaderboard: TipperOverview[] = safeUsers
+    .map((user) => {
+      const userPreds = safeMonthlyPredictions.filter((prediction) => prediction.user_id === user.id)
+      const wins = userPreds.filter((prediction) => normalizeResult(prediction.result) === 'OK').length
+      const losses = userPreds.filter((prediction) => normalizeResult(prediction.result) === 'NOK').length
+      const completed = wins + losses
+      const predictionCountByTicket = userPreds.reduce((acc, prediction) => {
+        if (!prediction.ticket_id) return acc
+        acc[prediction.ticket_id] = (acc[prediction.ticket_id] || 0) + 1
+        return acc
+      }, {} as Record<string, number>)
 
-    let totalStake = 0
-    let totalWins = 0
+      let totalStake = 0
+      let totalWins = 0
 
-    for (const prediction of userPreds) {
-      if (prediction.result !== 'OK' && prediction.result !== 'NOK') continue
+      for (const prediction of userPreds) {
+        const result = normalizeResult(prediction.result)
+        if (result !== 'OK' && result !== 'NOK') continue
 
-      const ticketStake = Number(ticketStakeById.get(prediction.ticket_id || '') || 0)
-      const legs = prediction.ticket_id ? predictionCountByTicket[prediction.ticket_id] || 0 : 0
-      const stakeShare = legs > 0 ? ticketStake / legs : 0
+        const ticketStake = Number(ticketStakeById.get(prediction.ticket_id || '') || 0)
+        const legs = prediction.ticket_id ? predictionCountByTicket[prediction.ticket_id] || 0 : 0
+        const stakeShare = legs > 0 ? ticketStake / legs : 0
 
-      totalStake += stakeShare
-      if (prediction.result === 'OK') {
-        const odds = Number(prediction.odds || 0)
-        totalWins += odds * stakeShare
+        totalStake += stakeShare
+        if (result === 'OK') totalWins += toNumber(prediction.odds) * stakeShare
       }
-    }
 
-    const total_profit = totalWins - totalStake
-    const yield_value = totalStake > 0 ? (total_profit / totalStake) * 100 : 0
-    const average_odds = userPreds.length > 0 
-      ? userPreds.reduce((sum, p) => sum + Number(p.odds), 0) / userPreds.length 
-      : 0
+      const total_profit = totalWins - totalStake
+      const yield_value = totalStake > 0 ? (total_profit / totalStake) * 100 : 0
+      const average_odds =
+        userPreds.length > 0 ? userPreds.reduce((sum, prediction) => sum + toNumber(prediction.odds), 0) / userPreds.length : 0
 
-    return {
-      user_id: user.id,
-      user_name: user.name,
-      total_predictions: userPreds.length,
-      wins,
-      losses,
-      pending: userPreds.filter((p) => p.result === 'Pending').length,
-      win_rate,
-      total_profit,
-      average_odds,
-      yield: yield_value,
-    }
-  }) || []
+      const trend = Array.from({ length: 4 }, (_, index) => {
+        const bucketEnd = new Date(recentPredictionsStart)
+        bucketEnd.setDate(bucketEnd.getDate() + index * 7 + 6)
+        const bucketStart = new Date(recentPredictionsStart)
+        bucketStart.setDate(bucketStart.getDate() + index * 7)
+        const bucketPredictions = safeRecentPerformancePredictions.filter((prediction) => {
+          if (prediction.user_id !== user.id || !prediction.tip_date) return false
+          const key = prediction.tip_date
+          return key >= toDateKey(bucketStart) && key <= toDateKey(bucketEnd)
+        })
+        const bucketWins = bucketPredictions.filter((prediction) => normalizeResult(prediction.result) === 'OK').length
+        const bucketLosses = bucketPredictions.filter((prediction) => normalizeResult(prediction.result) === 'NOK').length
+
+        return {
+          label: `${index + 1}`,
+          value: bucketWins - bucketLosses,
+        }
+      })
+
+      return {
+        user_id: user.id,
+        user_name: user.name,
+        total_predictions: userPreds.length,
+        wins,
+        losses,
+        pending: userPreds.filter((prediction) => normalizeResult(prediction.result) === 'PENDING').length,
+        win_rate: completed > 0 ? (wins / completed) * 100 : 0,
+        total_profit,
+        average_odds,
+        yield: yield_value,
+        trend,
+      }
+    })
+    .sort((a, b) => {
+      if (b.wins !== a.wins) return b.wins - a.wins
+      if (b.yield !== a.yield) return b.yield - a.yield
+      return b.average_odds - a.average_odds
+    })
 
   const statsIndex = buildProbabilityIndex((closedPredictions || []) as ClosedPredictionRecord[])
   const recentTickets = ((recentTicketsData as TicketType[]) || []).map((ticket) => {
@@ -204,6 +444,111 @@ async function getDashboardData() {
     }
   })
 
+  const highConfidencePending = recentTickets.filter(
+    (ticket) => ticket.status === 'pending' && typeof ticket.estimated_win_probability === 'number' && ticket.estimated_win_probability >= 0.45,
+  ).length
+
+  const trendStart = new Date(now)
+  trendStart.setDate(trendStart.getDate() - (TREND_DAYS - 1))
+  const trendStartKey = toDateKey(trendStart)
+
+  let rollingBankroll = 0
+
+  for (const transaction of safeFinanceTransactions) {
+    if (transaction.date < trendStartKey) rollingBankroll += Number(transaction.amount || 0)
+  }
+
+  for (const ticket of allTicketsSafe) {
+    if (ticket.date >= trendStartKey) continue
+    rollingBankroll += Number(ticket.payout || 0) - Number(ticket.stake || 0)
+  }
+
+  const trend: TrendPoint[] = []
+
+  for (let index = 0; index < TREND_DAYS; index += 1) {
+    const day = new Date(trendStart)
+    day.setDate(trendStart.getDate() + index)
+    const key = toDateKey(day)
+    const dayTransactions = safeFinanceTransactions.filter((transaction) => transaction.date === key)
+    const dayTickets = allTicketsSafe.filter((ticket) => ticket.date === key)
+    const cashflow = dayTransactions.reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0)
+    const stake = dayTickets.reduce((sum, ticket) => sum + Number(ticket.stake || 0), 0)
+    const payout = dayTickets.reduce((sum, ticket) => sum + Number(ticket.payout || 0), 0)
+    const dayProfit = payout - stake + cashflow
+    rollingBankroll += dayProfit
+
+    trend.push({
+      key,
+      shortLabel: new Intl.DateTimeFormat('sk-SK', { weekday: 'short' }).format(day).replace('.', ''),
+      label: format(day, 'd. MMMM'),
+      bankroll: rollingBankroll,
+      dayProfit,
+      stake,
+      payout,
+    })
+  }
+
+  const bestPerformer = monthlyLeaderboard[0] || null
+  const insights: InsightItem[] = [
+    {
+      title: 'Open exposure',
+      description:
+        openTickets > 0
+          ? `Otvorených je ${openTickets} tiketov za ${formatCurrency(totalOpenExposure)}. Potenciál výplaty je ${formatCurrency(pendingPotentialWins)}.`
+          : 'Momentálne nemáš otvorený žiadny tiket, takže bankroll nie je viazaný v pending pozíciách.',
+      tone: 'amber',
+    },
+    {
+      title: 'Najlepšia forma',
+      description: bestPerformer
+        ? `${bestPerformer.user_name} vedie mesiac s ${bestPerformer.wins} OK tipmi a yieldom ${formatPercent(bestPerformer.yield)}.`
+        : 'Zatiaľ nie sú dostupné mesačné dáta o forme tipérov.',
+      tone: 'emerald',
+    },
+    {
+      title: 'Momentum dňa',
+      description: todayProfit === 0
+        ? 'Dnešok je zatiaľ bez uzavretého zisku alebo straty, dashboard sleduje hlavne pending flow.'
+        : `Dnešný výsledok je ${formatCurrency(todayProfit, true)} oproti včerajšku ${formatCurrency(todayProfit - yesterdayProfit, true)}.`,
+      tone: 'sky',
+    },
+  ]
+
+  const activity: ActivityItem[] = [...allTicketsSafe]
+    .sort((a, b) => {
+      const aTime = new Date(a.created_at || a.date).getTime()
+      const bTime = new Date(b.created_at || b.date).getTime()
+      return bTime - aTime
+    })
+    .slice(0, 6)
+    .map((ticket) => {
+      if (ticket.status === 'win') {
+        return {
+          id: ticket.id,
+          title: ticket.description || `Výherný tiket ${formatCompactDate(ticket.date)}`,
+          subtitle: `${formatCompactDate(ticket.date)} • uzavreté so ziskom`,
+          amountLabel: formatCurrency(Number(ticket.payout || 0) - Number(ticket.stake || 0), true),
+          tone: 'emerald' as const,
+        }
+      }
+      if (ticket.status === 'loss') {
+        return {
+          id: ticket.id,
+          title: ticket.description || `Prehraný tiket ${formatCompactDate(ticket.date)}`,
+          subtitle: `${formatCompactDate(ticket.date)} • uzavreté stratou`,
+          amountLabel: formatCurrency(-(Number(ticket.stake || 0)), true),
+          tone: 'rose' as const,
+        }
+      }
+      return {
+        id: ticket.id,
+        title: ticket.description || `Pending tiket ${formatCompactDate(ticket.date)}`,
+        subtitle: `${formatCompactDate(ticket.date)} • čaká na vyhodnotenie`,
+        amountLabel: formatCurrency(Number(ticket.possible_win || 0)),
+        tone: 'amber' as const,
+      }
+    })
+
   return {
     stats,
     currentBankroll,
@@ -213,121 +558,491 @@ async function getDashboardData() {
     yesterdayProfit,
     openTickets,
     todayOrPendingTickets,
-    recentTickets
+    recentTickets,
+    pendingTickets: recentTickets.filter((ticket) => ticket.status === 'pending'),
+    resolvedTodayTickets: recentTickets.filter((ticket) => ticket.date === todayKey && ticket.status !== 'pending'),
+    trend,
+    insights,
+    activity,
+    totalOpenExposure,
+    highConfidencePending,
+    bestPerformer,
   }
 }
 
 export default async function OverviewPage() {
-  const { stats, currentBankroll, monthlyLeaderboard, recentTickets, pendingPotentialWins, todayProfit, yesterdayProfit, openTickets, todayOrPendingTickets } = await getDashboardData()
+  const {
+    stats,
+    currentBankroll,
+    monthlyLeaderboard,
+    recentTickets,
+    pendingPotentialWins,
+    todayProfit,
+    yesterdayProfit,
+    openTickets,
+    todayOrPendingTickets,
+    trend,
+    insights,
+    activity,
+    totalOpenExposure,
+    highConfidencePending,
+    bestPerformer,
+  } = await getDashboardData()
+
+  const trendValues = trend.map((point) => point.bankroll)
+  const trendDelta = trend.length > 1 ? trend[trend.length - 1].bankroll - trend[0].bankroll : 0
+  const featuredTickets = [
+    ...recentTickets.filter((ticket) => ticket.status === 'pending'),
+    ...recentTickets.filter((ticket) => ticket.status !== 'pending'),
+  ].slice(0, 3)
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-3xl font-black text-black tracking-tight">Prehľad</h1>
-        <p className="text-slate-600 font-medium">
-          Vitaj späť! Tu je tvoja aktuálna stávková štatistika.
-        </p>
-      </div>
-
-      <div className="grid gap-3 lg:grid-cols-2">
-        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">KPI prehľad</p>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-            <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-2">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Aktuálny stav</p>
-              <p className="mt-1 text-base font-black text-card-foreground">{Math.floor(currentBankroll).toLocaleString()} Kč</p>
+    <div className="mx-auto max-w-7xl space-y-6">
+      <section className="relative overflow-hidden rounded-[28px] border border-border/80 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-5 text-white shadow-[0_30px_80px_rgba(15,23,42,0.28)] md:p-7">
+        <div className="absolute -right-16 -top-14 h-48 w-48 rounded-full bg-emerald-400/20 blur-3xl" />
+        <div className="absolute left-1/3 top-1/2 h-40 w-40 rounded-full bg-cyan-400/15 blur-3xl" />
+        <div className="absolute -bottom-20 left-14 h-56 w-56 rounded-full bg-amber-300/10 blur-3xl" />
+        <div className="relative grid gap-6 xl:grid-cols-[1.4fr_0.9fr]">
+          <div className="space-y-5">
+            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/15 bg-white/[0.08] px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-white/80 backdrop-blur">
+              <Sparkles className="h-3.5 w-3.5" />
+              Mission control
             </div>
-            <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-2">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Tikety spolu</p>
-              <p className="mt-1 text-base font-black text-card-foreground">{stats.total_tickets}</p>
-            </div>
-            <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-2">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Úspešnosť</p>
-              <p className="mt-1 text-base font-black text-emerald-700">{stats.win_rate.toFixed(1)}%</p>
-            </div>
-            <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-2">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Vyhraté</p>
-              <p className="mt-1 text-base font-black text-emerald-700">{stats.winning_tickets}</p>
-            </div>
-            <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-2">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Prehraté</p>
-              <p className="mt-1 text-base font-black text-rose-700">{stats.losing_tickets}</p>
-            </div>
-            <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-2">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Čakajúce</p>
-              <p className="mt-1 text-base font-black text-amber-700">{stats.pending_tickets}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-          <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Rýchly stav</p>
-          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-amber-700/80">Pending možná výhra</p>
-              <p className="mt-1 text-base font-black text-amber-700">{pendingPotentialWins.toFixed(0)} Kč</p>
-            </div>
-            <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-2">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Dnešný profit</p>
-              <p className={`mt-1 text-base font-black ${todayProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                {todayProfit >= 0 ? '+' : ''}{todayProfit.toFixed(0)} Kč
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-3xl font-black tracking-tight md:text-5xl">Prehľad</h1>
+                <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-100">
+                  Live stav bankrollu
+                </span>
+              </div>
+              <p className="max-w-2xl text-sm font-medium leading-6 text-slate-200 md:text-base">
+                Dnes si {formatCurrency(todayProfit, true)}, otvorených je {openTickets} tiketov a dashboard sleduje formu tipérov,
+                momentum a pending riziko na jednom mieste.
               </p>
             </div>
-            <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-2">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Včerajší profit</p>
-              <p className={`mt-1 text-base font-black ${yesterdayProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                {yesterdayProfit >= 0 ? '+' : ''}{yesterdayProfit.toFixed(0)} Kč
-              </p>
-            </div>
-            <div className="rounded-lg border border-sky-500/20 bg-sky-500/5 px-3 py-2">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-sky-700/80">Otvorené tikety</p>
-              <p className="mt-1 text-base font-black text-sky-700">{openTickets}</p>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-4">
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-black uppercase tracking-wider text-sm">Dnešné a nevyhodnotené tikety</h2>
-              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
-                {todayOrPendingTickets}
-              </span>
+            <div className="grid gap-3 md:grid-cols-[1.2fr_0.8fr]">
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.08] p-4 backdrop-blur">
+                <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-white/55">Aktuálny bankroll</p>
+                <div className="mt-2 flex items-end gap-3">
+                  <p className="text-4xl font-black tracking-tight md:text-6xl">
+                    {Math.floor(currentBankroll).toLocaleString('sk-SK')}
+                  </p>
+                  <span className="pb-2 text-sm font-semibold text-white/65">Kč</span>
+                </div>
+                <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-white/10 bg-black/10 px-3 py-2">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-white/50">30d trend</p>
+                    <p className={`mt-1 text-sm font-bold ${trendDelta >= 0 ? 'text-emerald-200' : 'text-rose-200'}`}>
+                      {formatCurrency(trendDelta, true)}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-black/10 px-3 py-2">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-white/50">Open exposure</p>
+                    <p className="mt-1 text-sm font-bold text-amber-100">{formatCurrency(totalOpenExposure)}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-black/10 px-3 py-2">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-white/50">High confidence</p>
+                    <p className="mt-1 text-sm font-bold text-cyan-100">{highConfidencePending} pending</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.08] p-4 backdrop-blur">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-white/55">Trend bankrollu</p>
+                  <span className="rounded-full border border-white/10 px-2 py-1 text-[10px] font-semibold text-white/55">
+                    posledných {trend.length} dní
+                  </span>
+                </div>
+                <div className="mt-3">
+                  <TrendSparkline
+                    values={trendValues}
+                    positiveClassName="stroke-emerald-300"
+                    negativeClassName="stroke-rose-300"
+                  />
+                </div>
+                <div className="mt-2 flex items-center justify-between text-xs text-white/60">
+                  <span>{trend[0]?.label}</span>
+                  <span>{trend[trend.length - 1]?.label}</span>
+                </div>
+              </div>
             </div>
-            <Link 
-              href="/tickets" 
-              className="group flex items-center gap-1 text-xs font-bold text-emerald-500 hover:text-emerald-400 transition-colors"
-            >
-              Všetky tikety
-              <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
-            </Link>
           </div>
-          <div className="grid gap-3">
-            {recentTickets.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-800 p-12 text-center">
-                <p className="font-medium text-slate-500">Nemáš dnešné ani nevyhodnotené tikety</p>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            <div className="rounded-[24px] border border-white/10 bg-white/[0.08] p-4 backdrop-blur">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-white/55">Rýchly stav</p>
+                <Wallet className="h-4 w-4 text-white/55" />
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                <div className="rounded-2xl border border-emerald-300/10 bg-emerald-400/[0.08] px-3 py-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/70">Dnešný profit</p>
+                  <p className={`mt-1 text-xl font-black ${todayProfit >= 0 ? 'text-emerald-100' : 'text-rose-100'}`}>
+                    {formatCurrency(todayProfit, true)}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/10 px-3 py-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/50">Možná výhra</p>
+                  <p className="mt-1 text-xl font-black text-amber-50">{formatCurrency(pendingPotentialWins)}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/10 px-3 py-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/50">Otvorené tikety</p>
+                  <p className="mt-1 text-xl font-black text-cyan-50">{openTickets}</p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/10 px-3 py-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/50">Úspešnosť</p>
+                  <p className="mt-1 text-xl font-black text-white">{formatPercent(stats.win_rate)}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-[24px] border border-white/10 bg-white/[0.08] p-4 backdrop-blur">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-white/55">Akcie</p>
+                <Zap className="h-4 w-4 text-white/55" />
+              </div>
+              <div className="mt-4 grid gap-2">
                 <Link
                   href="/tickets"
-                  className="mt-4 inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-700 transition-colors hover:bg-emerald-500/20"
+                  className="inline-flex items-center justify-between rounded-2xl border border-emerald-300/15 bg-emerald-400/10 px-4 py-3 text-sm font-semibold text-emerald-50 transition-transform hover:-translate-y-0.5"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <Plus className="h-4 w-4" />
+                    Pridať nový tiket
+                  </span>
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+                <Link
+                  href="/statistics"
+                  className="inline-flex items-center justify-between rounded-2xl border border-white/10 bg-black/10 px-4 py-3 text-sm font-semibold text-white/[0.85] transition-transform hover:-translate-y-0.5"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <LineChart className="h-4 w-4" />
+                    Otvoriť štatistiky
+                  </span>
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
+        <div className="rounded-[26px] border border-border/80 bg-card/90 p-5 shadow-sm backdrop-blur">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="inline-flex items-center gap-2 rounded-full border border-sky-500/20 bg-sky-500/[0.08] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-sky-700">
+                <Clock3 className="h-3.5 w-3.5" />
+                Dnes a live stav
+              </p>
+              <h2 className="mt-3 text-xl font-black tracking-tight text-card-foreground">Čo sa deje práve teraz</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Rýchly prehľad flowu, rizika a rozdielu oproti včerajšku.</p>
+            </div>
+            <span className="rounded-full border border-border/70 bg-muted/30 px-3 py-1 text-xs font-semibold text-muted-foreground">
+              {todayOrPendingTickets} dnešných alebo open tiketov
+            </span>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-card to-emerald-500/[0.06] p-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Dnešný výsledok</p>
+              <p className={`mt-2 text-2xl font-black ${todayProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                {formatCurrency(todayProfit, true)}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">vs. včera {formatCurrency(todayProfit - yesterdayProfit, true)}</p>
+            </div>
+            <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-card to-amber-500/[0.06] p-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Pending riziko</p>
+              <p className="mt-2 text-2xl font-black text-amber-700">{formatCurrency(totalOpenExposure)}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{openTickets} tiketov čaká na výsledok</p>
+            </div>
+            <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-card to-cyan-500/[0.06] p-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Šanca s edge</p>
+              <p className="mt-2 text-2xl font-black text-sky-700">{highConfidencePending}</p>
+              <p className="mt-1 text-xs text-muted-foreground">pending tiketov s vyššou confidence</p>
+            </div>
+            <div className="rounded-2xl border border-border/70 bg-gradient-to-br from-card to-violet-500/[0.06] p-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Top forma</p>
+              <p className="mt-2 truncate text-2xl font-black text-card-foreground">
+                {bestPerformer?.user_name || 'Bez dát'}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {bestPerformer ? `${bestPerformer.wins} OK • ${formatPercent(bestPerformer.yield)}` : 'Mesačný leaderboard ešte nemá dáta'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-4">
+          {insights.map((insight) => (
+            <article
+              key={insight.title}
+              className={`rounded-[24px] border p-4 shadow-sm ${toneClasses(insight.tone)}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.22em]">{insight.title}</p>
+                  <p className="mt-2 text-sm font-medium leading-6 text-card-foreground">{insight.description}</p>
+                </div>
+                {insight.tone === 'emerald' ? (
+                  <Trophy className="h-5 w-5 shrink-0" />
+                ) : insight.tone === 'sky' ? (
+                  <TrendingUp className="h-5 w-5 shrink-0" />
+                ) : (
+                  <CircleAlert className="h-5 w-5 shrink-0" />
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
+        <article className="rounded-[26px] border border-border/80 bg-card/90 p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/[0.08] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-700">
+                <LineChart className="h-3.5 w-3.5" />
+                Bankroll trend
+              </p>
+              <h2 className="mt-3 text-xl font-black tracking-tight text-card-foreground">Vývoj bankrollu za posledných 14 dní</h2>
+            </div>
+            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${trendDelta >= 0 ? 'bg-emerald-500/10 text-emerald-700' : 'bg-rose-500/10 text-rose-700'}`}>
+              {formatCurrency(trendDelta, true)}
+            </span>
+          </div>
+
+          <div className="mt-5 rounded-[24px] border border-border/70 bg-gradient-to-b from-background to-muted/20 p-4">
+            <TrendSparkline
+              values={trendValues}
+              positiveClassName="stroke-emerald-500"
+              negativeClassName="stroke-rose-500"
+              height={180}
+            />
+            <div className="mt-3 grid grid-cols-7 gap-2 text-[11px] text-muted-foreground md:grid-cols-14">
+              {trend.map((point) => (
+                <div key={point.key} className="space-y-1 rounded-xl border border-border/60 bg-card/70 px-2 py-2 text-center">
+                  <p className="font-semibold uppercase">{point.shortLabel}</p>
+                  <p className={point.dayProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
+                    {point.dayProfit >= 0 ? '+' : ''}
+                    {Math.round(point.dayProfit)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </article>
+
+        <article className="rounded-[26px] border border-border/80 bg-card/90 p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="inline-flex items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/[0.08] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-700">
+                <Flame className="h-3.5 w-3.5" />
+                Forma tipérov
+              </p>
+              <h2 className="mt-3 text-xl font-black tracking-tight text-card-foreground">Mesačný leaderboard</h2>
+            </div>
+            <Link href="/ranking" className="text-sm font-semibold text-emerald-700 hover:text-emerald-600">
+              Viac
+            </Link>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {monthlyLeaderboard.slice(0, 4).map((user, index) => (
+              <div
+                key={user.user_id}
+                className="rounded-[22px] border border-border/70 bg-gradient-to-br from-card via-card to-muted/15 p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <div className={`flex h-9 w-9 items-center justify-center rounded-2xl text-sm font-black ${
+                        index === 0
+                          ? 'bg-amber-500/15 text-amber-700'
+                          : index === 1
+                            ? 'bg-slate-500/12 text-slate-700'
+                            : 'bg-emerald-500/10 text-emerald-700'
+                      }`}>
+                        {index + 1}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-card-foreground">{user.user_name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {user.wins} OK • Ø {user.average_odds.toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-black text-card-foreground">{formatPercent(user.win_rate)}</p>
+                    <p className={user.total_profit >= 0 ? 'text-xs font-semibold text-emerald-600' : 'text-xs font-semibold text-rose-600'}>
+                      {formatCurrency(user.total_profit, true)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <div className="text-xs text-muted-foreground">
+                    <p>Yield <span className={user.yield >= 0 ? 'font-semibold text-emerald-600' : 'font-semibold text-rose-600'}>{formatPercent(user.yield)}</span></p>
+                  </div>
+                  <SmallTrend
+                    values={user.trend.map((point) => point.value)}
+                    tone={index === 0 ? 'amber' : index === 1 ? 'sky' : 'emerald'}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+        <article className="rounded-[26px] border border-border/80 bg-card/90 p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/[0.08] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-700">
+                <Target className="h-3.5 w-3.5" />
+                Ticket spotlight
+              </p>
+              <h2 className="mt-3 text-xl font-black tracking-tight text-card-foreground">Dnešné a najdôležitejšie tikety</h2>
+            </div>
+            <Link href="/tickets" className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-700 hover:text-emerald-600">
+              Všetky tikety
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            {featuredTickets.map((ticket) => (
+              <div key={`spotlight-${ticket.id}`} className="rounded-[22px] border border-border/70 bg-gradient-to-br from-card via-card to-muted/15 p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] ${
+                    ticket.status === 'win'
+                      ? 'bg-emerald-500/10 text-emerald-700'
+                      : ticket.status === 'loss'
+                        ? 'bg-rose-500/10 text-rose-700'
+                        : 'bg-amber-500/10 text-amber-700'
+                  }`}>
+                    {ticket.status === 'win' ? 'Výhra' : ticket.status === 'loss' ? 'Prehra' : 'Pending'}
+                  </span>
+                  <span className="text-xs font-semibold text-muted-foreground">{formatCompactDate(ticket.date)}</span>
+                </div>
+                <p className="mt-3 line-clamp-2 text-sm font-bold text-card-foreground">
+                  {ticket.description || `Tiket ${formatCompactDate(ticket.date)}`}
+                </p>
+                <div className="mt-4 space-y-2 text-xs text-muted-foreground">
+                  <div className="flex items-center justify-between">
+                    <span>Kurz</span>
+                    <span className="font-semibold text-card-foreground">{Number(ticket.combined_odds || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Stake</span>
+                    <span className="font-semibold text-card-foreground">{formatCurrency(Number(ticket.stake || 0))}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Šanca</span>
+                    <span className="font-semibold text-cyan-700">
+                      {typeof ticket.estimated_win_probability === 'number'
+                        ? formatPercent(ticket.estimated_win_probability * 100)
+                        : 'Nedostatok dát'}
+                    </span>
+                  </div>
+                </div>
+                <Link
+                  href={`/tickets/${ticket.id}`}
+                  className="mt-4 inline-flex items-center gap-1 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.08] px-3 py-2 text-xs font-semibold text-emerald-700"
+                >
+                  Detail
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5 grid gap-3">
+            {recentTickets.length === 0 ? (
+              <div className="rounded-[24px] border border-dashed border-border/80 bg-muted/20 p-12 text-center">
+                <p className="font-medium text-muted-foreground">Nemáš dnešné ani otvorené tikety.</p>
+                <Link
+                  href="/tickets"
+                  className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.08] px-4 py-2 text-sm font-semibold text-emerald-700"
                 >
                   Pridať tiket
-                  <ArrowRight className="h-3 w-3" />
+                  <Plus className="h-4 w-4" />
                 </Link>
               </div>
             ) : (
-              recentTickets.map((ticket) => (
-                <TicketCard key={ticket.id} ticket={ticket} expandable />
-              ))
+              recentTickets.map((ticket) => <TicketCard key={ticket.id} ticket={ticket} expandable />)
             )}
           </div>
-        </div>
+        </article>
 
-        <div className="space-y-4">
-          <LeaderboardCard stats={monthlyLeaderboard} />
-        </div>
-      </div>
+        <article className="rounded-[26px] border border-border/80 bg-card/90 p-5 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="inline-flex items-center gap-2 rounded-full border border-violet-500/20 bg-violet-500/[0.08] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-violet-700">
+                <CalendarDays className="h-3.5 w-3.5" />
+                Activity feed
+              </p>
+              <h2 className="mt-3 text-xl font-black tracking-tight text-card-foreground">Posledné udalosti</h2>
+            </div>
+            <span className="text-xs font-semibold text-muted-foreground">auto z tiketov</span>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {activity.map((item) => (
+              <div key={item.id} className="flex items-start gap-3 rounded-[22px] border border-border/70 bg-gradient-to-br from-card via-card to-muted/15 p-4">
+                <div className={`mt-0.5 rounded-2xl border p-2 ${toneClasses(item.tone)}`}>
+                  {item.tone === 'emerald' ? (
+                    <Trophy className="h-4 w-4" />
+                  ) : item.tone === 'rose' ? (
+                    <CircleAlert className="h-4 w-4" />
+                  ) : item.tone === 'sky' ? (
+                    <TrendingUp className="h-4 w-4" />
+                  ) : (
+                    <Clock3 className="h-4 w-4" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-card-foreground">{item.title}</p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.subtitle}</p>
+                    </div>
+                    <p className={`shrink-0 text-xs font-semibold ${item.tone === 'emerald' ? 'text-emerald-600' : item.tone === 'rose' ? 'text-rose-600' : item.tone === 'sky' ? 'text-sky-600' : 'text-amber-600'}`}>
+                      {item.amountLabel}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5 rounded-[22px] border border-border/70 bg-gradient-to-br from-slate-50 to-white p-4">
+            <div className="flex items-center gap-2">
+              <Gauge className="h-4 w-4 text-slate-700" />
+              <p className="text-sm font-bold text-slate-900">Quick pulse</p>
+            </div>
+            <div className="mt-3 grid gap-2 text-sm text-slate-700">
+              <p className="flex items-center justify-between rounded-xl border border-slate-200 bg-white/80 px-3 py-2">
+                <span>Vyhraté tikety</span>
+                <span className="font-bold">{stats.winning_tickets}</span>
+              </p>
+              <p className="flex items-center justify-between rounded-xl border border-slate-200 bg-white/80 px-3 py-2">
+                <span>Prehraté tikety</span>
+                <span className="font-bold">{stats.losing_tickets}</span>
+              </p>
+              <p className="flex items-center justify-between rounded-xl border border-slate-200 bg-white/80 px-3 py-2">
+                <span>Čakajúce tikety</span>
+                <span className="font-bold">{stats.pending_tickets}</span>
+              </p>
+            </div>
+          </div>
+        </article>
+      </section>
     </div>
   )
 }
