@@ -180,42 +180,45 @@ export function SportsLeaguesManager({ sports: initialSports, leagues: initialLe
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs font-black uppercase tracking-widest text-muted-foreground hover:bg-secondary transition-all"
+        className="inline-flex w-full items-center justify-between gap-2 rounded-2xl border border-white/10 bg-black/10 px-4 py-3 text-sm font-semibold text-white/85 transition-all hover:bg-white/[0.08]"
       >
-        <Settings2 className="h-4 w-4" />
-        <span className="hidden md:inline">Športy/Ligy</span>
+        <span className="inline-flex items-center gap-2">
+          <Settings2 className="h-4 w-4" />
+          Športy a ligy
+        </span>
+        <span className="text-xs font-semibold text-white/45">Otvoriť</span>
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/80 backdrop-blur-sm md:items-center">
-          <div className="relative max-h-[90vh] w-full overflow-y-auto rounded-t-2xl border border-border bg-card p-4 shadow-2xl md:max-w-4xl md:rounded-xl md:p-6">
-            <div className="mb-4 flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/70 p-0 backdrop-blur-sm md:items-center md:p-6">
+          <div className="relative max-h-[92vh] w-full overflow-y-auto rounded-t-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 text-white shadow-2xl md:max-w-5xl md:rounded-3xl md:p-6">
+            <div className="mb-5 flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-lg font-black uppercase tracking-tight text-black md:text-xl">Správa športov a líg</h2>
-                <p className="text-sm font-medium text-muted-foreground">Pridávanie, úprava a mazanie</p>
+                <h2 className="text-lg font-black uppercase tracking-tight text-white md:text-xl">Správa športov a líg</h2>
+                <p className="text-sm font-medium text-white/60">Pridávanie, úprava a mazanie bez odchodu zo stránky</p>
               </div>
               <button
                 onClick={() => setIsOpen(false)}
-                className="rounded-full p-2 text-muted-foreground hover:bg-secondary transition-colors"
+                className="rounded-full border border-white/10 p-2 text-white/65 transition-colors hover:bg-white/[0.08]"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-xl border border-border bg-secondary/30 p-3">
-                <h3 className="mb-2 text-xs font-black uppercase tracking-widest text-muted-foreground">Športy</h3>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4">
+                <h3 className="mb-3 text-xs font-black uppercase tracking-widest text-white/55">Športy</h3>
                 <div className="mb-3 flex gap-2">
                   <input
                     value={newSportName}
                     onChange={(e) => setNewSportName(e.target.value)}
                     placeholder="Nový šport"
-                    className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full rounded-xl border border-white/10 bg-black/10 px-3 py-2 text-sm font-semibold text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
                   />
                   <button
                     onClick={handleCreateSport}
                     disabled={isSaving}
-                    className="rounded-lg bg-emerald-500 px-3 py-2 text-xs font-black uppercase tracking-wide text-white disabled:opacity-60"
+                    className="rounded-xl bg-emerald-500 px-3 py-2 text-xs font-black uppercase tracking-wide text-white disabled:opacity-60"
                   >
                     Pridať
                   </button>
@@ -223,35 +226,35 @@ export function SportsLeaguesManager({ sports: initialSports, leagues: initialLe
 
                 <div className="space-y-2">
                   {sortedSports.map((sport) => (
-                    <div key={sport.id} className="rounded-lg border border-border bg-card px-2 py-2">
+                    <div key={sport.id} className="rounded-xl border border-white/10 bg-black/10 px-3 py-2.5">
                       {editingSport?.id === sport.id ? (
                         <div className="flex gap-2">
                           <input
                             value={editingSport.name}
                             onChange={(e) => setEditingSport({ ...editingSport, name: e.target.value })}
-                            className="w-full rounded-md border border-border bg-white px-2 py-1 text-sm font-semibold focus:outline-none focus:ring-1 focus:ring-primary"
+                            className="w-full rounded-lg border border-white/10 bg-white px-2 py-1 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-400"
                           />
                           <button
                             onClick={handleUpdateSport}
                             disabled={isSaving}
-                            className="rounded-md bg-emerald-500 px-2 py-1 text-[10px] font-black uppercase text-white disabled:opacity-60"
+                            className="rounded-lg bg-emerald-500 px-2 py-1 text-[10px] font-black uppercase text-white disabled:opacity-60"
                           >
                             Uložiť
                           </button>
                         </div>
                       ) : (
                         <div className="flex items-center justify-between gap-2">
-                          <p className="text-sm font-semibold text-card-foreground">{sport.name}</p>
+                          <p className="text-sm font-semibold text-white">{sport.name}</p>
                           <div className="flex items-center gap-1">
                             <button
                               onClick={() => setEditingSport({ id: sport.id, name: sport.name })}
-                              className="rounded-md border border-border p-1.5 text-muted-foreground hover:bg-secondary"
+                              className="rounded-lg border border-white/10 p-1.5 text-white/60 hover:bg-white/[0.08]"
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </button>
                             <button
                               onClick={() => handleDeleteSport(sport)}
-                              className="rounded-md border border-rose-300/50 p-1.5 text-rose-600 hover:bg-rose-500/10"
+                              className="rounded-lg border border-rose-400/20 p-1.5 text-rose-300 hover:bg-rose-500/10"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
@@ -263,19 +266,19 @@ export function SportsLeaguesManager({ sports: initialSports, leagues: initialLe
                 </div>
               </div>
 
-              <div className="rounded-xl border border-border bg-secondary/30 p-3">
-                <h3 className="mb-2 text-xs font-black uppercase tracking-widest text-muted-foreground">Ligy</h3>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4">
+                <h3 className="mb-3 text-xs font-black uppercase tracking-widest text-white/55">Ligy</h3>
                 <div className="mb-3 grid grid-cols-1 gap-2">
                   <input
                     value={newLeagueName}
                     onChange={(e) => setNewLeagueName(e.target.value)}
                     placeholder="Nová liga"
-                    className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full rounded-xl border border-white/10 bg-black/10 px-3 py-2 text-sm font-semibold text-white placeholder:text-white/35 focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
                   />
                   <select
                     value={newLeagueSportId}
                     onChange={(e) => setNewLeagueSportId(e.target.value)}
-                    className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full rounded-xl border border-white/10 bg-black/10 px-3 py-2 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
                   >
                     <option value="">Vybrať šport</option>
                     {sortedSports.map((sport) => (
@@ -287,7 +290,7 @@ export function SportsLeaguesManager({ sports: initialSports, leagues: initialLe
                   <button
                     onClick={handleCreateLeague}
                     disabled={isSaving}
-                    className="rounded-lg bg-emerald-500 px-3 py-2 text-xs font-black uppercase tracking-wide text-white disabled:opacity-60"
+                    className="rounded-xl bg-emerald-500 px-3 py-2 text-xs font-black uppercase tracking-wide text-white disabled:opacity-60"
                   >
                     Pridať
                   </button>
@@ -295,18 +298,18 @@ export function SportsLeaguesManager({ sports: initialSports, leagues: initialLe
 
                 <div className="space-y-2">
                   {sortedLeagues.map((league) => (
-                    <div key={league.id} className="rounded-lg border border-border bg-card px-2 py-2">
+                    <div key={league.id} className="rounded-xl border border-white/10 bg-black/10 px-3 py-2.5">
                       {editingLeague?.id === league.id ? (
                         <div className="grid gap-2">
                           <input
                             value={editingLeague.name}
                             onChange={(e) => setEditingLeague({ ...editingLeague, name: e.target.value })}
-                            className="w-full rounded-md border border-border bg-white px-2 py-1 text-sm font-semibold focus:outline-none focus:ring-1 focus:ring-primary"
+                            className="w-full rounded-lg border border-white/10 bg-white px-2 py-1 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-400"
                           />
                           <select
                             value={editingLeague.sport_id}
                             onChange={(e) => setEditingLeague({ ...editingLeague, sport_id: e.target.value })}
-                            className="w-full rounded-md border border-border bg-white px-2 py-1 text-sm font-semibold focus:outline-none focus:ring-1 focus:ring-primary"
+                            className="w-full rounded-lg border border-white/10 bg-white px-2 py-1 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-1 focus:ring-emerald-400"
                           >
                             {sortedSports.map((sport) => (
                               <option key={sport.id} value={sport.id}>
@@ -317,7 +320,7 @@ export function SportsLeaguesManager({ sports: initialSports, leagues: initialLe
                           <button
                             onClick={handleUpdateLeague}
                             disabled={isSaving}
-                            className="rounded-md bg-emerald-500 px-2 py-1 text-[10px] font-black uppercase text-white disabled:opacity-60"
+                            className="rounded-lg bg-emerald-500 px-2 py-1 text-[10px] font-black uppercase text-white disabled:opacity-60"
                           >
                             Uložiť
                           </button>
@@ -325,19 +328,19 @@ export function SportsLeaguesManager({ sports: initialSports, leagues: initialLe
                       ) : (
                         <div className="flex items-center justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-card-foreground">{league.name}</p>
-                            <p className="text-[11px] text-muted-foreground">{getSportName(league.sport_id)}</p>
+                            <p className="truncate text-sm font-semibold text-white">{league.name}</p>
+                            <p className="text-[11px] text-white/55">{getSportName(league.sport_id)}</p>
                           </div>
                           <div className="flex items-center gap-1">
                             <button
                               onClick={() => setEditingLeague({ id: league.id, name: league.name, sport_id: league.sport_id })}
-                              className="rounded-md border border-border p-1.5 text-muted-foreground hover:bg-secondary"
+                              className="rounded-lg border border-white/10 p-1.5 text-white/60 hover:bg-white/[0.08]"
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </button>
                             <button
                               onClick={() => handleDeleteLeague(league)}
-                              className="rounded-md border border-rose-300/50 p-1.5 text-rose-600 hover:bg-rose-500/10"
+                              className="rounded-lg border border-rose-400/20 p-1.5 text-rose-300 hover:bg-rose-500/10"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>

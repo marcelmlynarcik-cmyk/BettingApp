@@ -5,7 +5,7 @@ import { TicketCard } from '@/components/TicketCard'
 import { AddTicketForm } from '@/components/add-ticket-form'
 import type { Ticket, Prediction, User, Sport, League } from '@/lib/types'
 import { SportsLeaguesManager } from '@/components/sports-leagues-manager'
-import { ArrowRight, Flame, Plus, Sparkles, Ticket as TicketIcon } from 'lucide-react'
+import { ArrowRight, Flame, Plus, Sparkles } from 'lucide-react'
 
 interface TicketsPageClientProps {
   tickets: (Ticket & { predictions: (Prediction & { user?: User; sport?: Sport; league?: League })[] })[]
@@ -61,13 +61,6 @@ export function TicketsPageClient({
     lost: tickets.filter((t) => t.status === 'loss').length,
   }
 
-  const pendingPotentialWins = tickets
-    .filter((ticket) => ticket.status === 'pending')
-    .reduce((sum, ticket) => sum + Number(ticket.possible_win || 0), 0)
-
-  const todayKey = new Date().toISOString().split('T')[0]
-  const todayTickets = tickets.filter((ticket) => ticket.date === todayKey).length
-
   return (
     <div className="relative mx-auto max-w-5xl space-y-6">
       <div className="pointer-events-none absolute inset-x-6 top-6 -z-10 h-56 rounded-full bg-emerald-400/10 blur-3xl" />
@@ -87,28 +80,13 @@ export function TicketsPageClient({
               Tu máš všetky otvorené, dnešné aj uzavreté tikety na jednom mieste. Stačí si vybrať filter a pokračovať tam,
               kde potrebuješ.
             </p>
-
-            <div className="mt-4 grid gap-2 sm:grid-cols-3">
-              <div className="rounded-2xl border border-white/10 bg-black/10 px-3 py-3">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-white/50">Otvorené tikety</p>
-                <p className="mt-1 text-xl font-black text-cyan-100">{stats.pending}</p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-black/10 px-3 py-3">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-white/50">Možná výhra</p>
-                <p className="mt-1 text-xl font-black text-amber-100">{Math.round(pendingPotentialWins).toLocaleString('sk-SK')} Kč</p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-black/10 px-3 py-3">
-                <p className="text-[10px] uppercase tracking-[0.18em] text-white/50">Dnešné tikety</p>
-                <p className="mt-1 text-xl font-black text-emerald-100">{todayTickets}</p>
-              </div>
-            </div>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
             <div className="rounded-[24px] border border-white/10 bg-white/[0.08] p-4 backdrop-blur">
               <div className="flex items-center justify-between">
                 <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-white/55">Rýchle akcie</p>
-                <TicketIcon className="h-4 w-4 text-white/55" />
+                <span className="text-xs font-semibold text-white/45">filtrovanie a pridanie</span>
               </div>
               <div className="mt-4 grid gap-2">
                 <button
@@ -142,6 +120,9 @@ export function TicketsPageClient({
                 <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-white/55">Správa súťaží</p>
                 <span className="text-xs font-semibold text-white/45">športy a ligy</span>
               </div>
+              <p className="mt-3 text-sm leading-6 text-white/70">
+                Uprav si zoznam športov a líg bez odchodu zo stránky.
+              </p>
               <div className="mt-4">
                 <SportsLeaguesManager sports={sports} leagues={leagues} />
               </div>
