@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { League, Sport } from '@/lib/types'
@@ -19,6 +20,7 @@ function sortByName<T extends { name: string }>(items: T[]) {
 export function SportsLeaguesManager({ sports: initialSports, leagues: initialLeagues }: SportsLeaguesManagerProps) {
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
   const [sports, setSports] = useState(initialSports)
   const [leagues, setLeagues] = useState(initialLeagues)
   const [newSportName, setNewSportName] = useState('')
@@ -30,6 +32,10 @@ export function SportsLeaguesManager({ sports: initialSports, leagues: initialLe
 
   const sortedSports = useMemo(() => sortByName(sports), [sports])
   const sortedLeagues = useMemo(() => sortByName(leagues), [leagues])
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   const refreshData = () => {
     router.refresh()
@@ -189,7 +195,7 @@ export function SportsLeaguesManager({ sports: initialSports, leagues: initialLe
         <span className="text-xs font-semibold text-white/45">Otvoriť</span>
       </button>
 
-      {isOpen && (
+      {isMounted && isOpen && createPortal(
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/70 p-0 backdrop-blur-sm md:items-center md:p-6">
           <div className="relative max-h-[92vh] w-full overflow-y-auto rounded-t-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-4 text-white shadow-2xl md:max-w-5xl md:rounded-3xl md:p-6">
             <div className="mb-5 flex items-center justify-between gap-4">
@@ -353,7 +359,8 @@ export function SportsLeaguesManager({ sports: initialSports, leagues: initialLe
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   )
