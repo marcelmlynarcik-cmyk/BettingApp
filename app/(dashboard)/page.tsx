@@ -596,6 +596,12 @@ export default async function OverviewPage() {
                     {formatCurrency(todayProfit, true)}
                   </p>
                 </div>
+                <div className="rounded-2xl border border-sky-300/20 bg-sky-50/75 px-3 py-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-sky-700/70">Včerajší profit</p>
+                  <p className={`mt-1 text-xl font-black ${yesterdayProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                    {formatCurrency(yesterdayProfit, true)}
+                  </p>
+                </div>
                 <div className="rounded-2xl border border-amber-300/20 bg-amber-50/75 px-3 py-3">
                   <p className="text-[10px] uppercase tracking-[0.18em] text-amber-700/70">Možná výhra</p>
                   <p className="mt-1 text-xl font-black text-amber-700">{formatCurrency(pendingPotentialWins)}</p>
