@@ -193,7 +193,12 @@ function DashboardCard({
   className?: string
 }) {
   return (
-    <div className={cn('min-w-0 rounded-xl border border-border/80 bg-card p-4 shadow-sm sm:p-5', className)}>
+    <div
+      className={cn(
+        'min-w-0 rounded-2xl border border-border/70 bg-gradient-to-br from-amber-50/60 via-card to-orange-50/40 p-4 shadow-sm sm:p-5',
+        className,
+      )}
+    >
       <div className="mb-3">
         <h3 className="text-sm font-semibold tracking-tight text-card-foreground sm:text-base">{title}</h3>
         <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>
@@ -425,6 +430,10 @@ export function StatisticsCharts({
   const sortedBySoloWinningTipTickets = [...tipperInsights].sort((a, b) => b.soloWinningTipTickets - a.soloWinningTipTickets)
   const sortedByBrokenTickets = [...tipperInsights].sort((a, b) => b.brokenTickets - a.brokenTickets)
   const chartSurfaceClass = 'rounded-xl border border-border/70 bg-gradient-to-r from-background to-muted/20 p-2 shadow-sm'
+  const sectionDetailsClass = 'rounded-2xl border border-border/70 bg-gradient-to-br from-amber-50/60 via-card to-orange-50/30 p-3 shadow-sm'
+  const sectionSummaryClass = 'cursor-pointer list-none select-none text-xs font-bold uppercase tracking-wider text-muted-foreground'
+  const miniCardClass = 'rounded-xl border border-border/70 bg-white/75 p-3 shadow-sm backdrop-blur'
+  const infoPillClass = 'rounded-md border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700'
   const todayLabel = new Intl.DateTimeFormat('sk-SK', {
     day: '2-digit',
     month: '2-digit',
@@ -449,8 +458,8 @@ export function StatisticsCharts({
 
   return (
     <div className="space-y-4">
-      <details className="rounded-xl border border-border bg-card p-3">
-        <summary className="cursor-pointer list-none select-none text-xs font-bold uppercase tracking-wider text-muted-foreground">
+      <details className={sectionDetailsClass}>
+        <summary className={sectionSummaryClass}>
           Výkonnosť tipérov
         </summary>
         <div className="mt-3 grid gap-4 lg:grid-cols-2">
@@ -580,8 +589,8 @@ export function StatisticsCharts({
         </div>
       </details>
 
-      <details className="rounded-xl border border-border bg-card p-3">
-        <summary className="cursor-pointer list-none select-none text-xs font-bold uppercase tracking-wider text-muted-foreground">
+      <details className={sectionDetailsClass}>
+        <summary className={sectionSummaryClass}>
           Výkonnosť tipovania
         </summary>
         <div className="mt-3 grid gap-4 lg:grid-cols-2">
@@ -637,8 +646,8 @@ export function StatisticsCharts({
         </div>
       </details>
 
-      <details className="rounded-xl border border-border bg-card p-3">
-        <summary className="cursor-pointer list-none select-none text-xs font-bold uppercase tracking-wider text-muted-foreground">
+      <details className={sectionDetailsClass}>
+        <summary className={sectionSummaryClass}>
           Cashflow účtu
         </summary>
         <div className="mt-3 grid gap-4 lg:grid-cols-2">
@@ -691,8 +700,8 @@ export function StatisticsCharts({
         </div>
       </details>
 
-      <details className="rounded-xl border border-border bg-card p-3">
-        <summary className="cursor-pointer list-none select-none text-xs font-bold uppercase tracking-wider text-muted-foreground">
+      <details className={sectionDetailsClass}>
+        <summary className={sectionSummaryClass}>
           Pokročilé štatistiky
         </summary>
         <div className="mt-3 grid gap-4 lg:grid-cols-2">
@@ -794,19 +803,19 @@ export function StatisticsCharts({
                 {intensityRows.length > 0 ? (
                   <>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  <div className="rounded-lg border border-border bg-muted/20 p-3">
+                  <div className={cn(miniCardClass, 'bg-emerald-50/55')}>
                     <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Najlepší bucket</p>
                     <p className="mt-1 break-words text-sm font-black text-card-foreground">{bestIntensityRow?.bucketLabel || '-'}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       ROI {bestIntensityRow ? `${bestIntensityRow.roi >= 0 ? '+' : ''}${bestIntensityRow.roi.toFixed(1)}%` : '-'}
                     </p>
                   </div>
-                  <div className="rounded-lg border border-border bg-muted/20 p-3">
+                  <div className={cn(miniCardClass, 'bg-sky-50/55')}>
                     <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Vzorka dní</p>
                     <p className="mt-1 text-sm font-black text-card-foreground">{totalIntensityDays}</p>
                     <p className="mt-1 text-xs text-muted-foreground">{totalIntensityResolvedTickets} uzavretých tiketov</p>
                   </div>
-                  <div className="rounded-lg border border-border bg-muted/20 p-3">
+                  <div className={cn(miniCardClass, 'bg-amber-50/65')}>
                     <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Odporúčanie</p>
                     <p className="mt-1 break-words text-sm font-black text-card-foreground">{intensityRecommendation}</p>
                   </div>
@@ -847,7 +856,7 @@ export function StatisticsCharts({
                   {[...selectedIntensityRows]
                     .sort((a, b) => b.roi - a.roi || b.dayCount - a.dayCount)
                     .map((row) => (
-                      <div key={`mobile-${row.bucketKey}`} className="rounded-lg border border-border bg-muted/10 p-3">
+                      <div key={`mobile-${row.bucketKey}`} className={miniCardClass}>
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-sm font-semibold text-foreground">{row.bucketLabel}</p>
                           <span
@@ -879,9 +888,9 @@ export function StatisticsCharts({
                     ))}
                 </div>
 
-                <div className="hidden overflow-x-auto rounded-lg border border-border md:block">
+                <div className="hidden overflow-x-auto rounded-xl border border-border/70 bg-white/70 shadow-sm backdrop-blur md:block">
                   <table className="min-w-full text-sm">
-                    <thead className="bg-muted/30 text-xs uppercase tracking-wider text-muted-foreground">
+                    <thead className="bg-amber-50/60 text-xs uppercase tracking-wider text-muted-foreground">
                       <tr>
                         <th className="px-3 py-2 text-left">Bucket</th>
                         <th className="px-3 py-2 text-right">Dní</th>
@@ -932,7 +941,7 @@ export function StatisticsCharts({
                   </table>
                 </div>
 
-                <div className="rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                <div className="rounded-xl border border-border/70 bg-white/75 px-3 py-2 text-xs text-muted-foreground shadow-sm backdrop-blur">
                   <p>
                     {bestIntensityRow
                       ? `Najlepšie vychádza režim ${bestIntensityRow.bucketLabel} (ROI ${bestIntensityRow.roi >= 0 ? '+' : ''}${bestIntensityRow.roi.toFixed(1)}%, ${bestIntensityRow.dayCount} dní).`
@@ -964,19 +973,19 @@ export function StatisticsCharts({
           subtitle="Aktuálne a historické série výsledkov"
         >
           <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-lg border border-emerald-300/30 bg-emerald-500/5 p-3">
+            <div className="rounded-xl border border-emerald-300/35 bg-emerald-50/75 p-3 shadow-sm">
               <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700/80">Aktuálna win séria</p>
               <p className="mt-1 text-2xl font-black text-emerald-700">{streakStats.currentWin}</p>
             </div>
-            <div className="rounded-lg border border-rose-300/30 bg-rose-500/5 p-3">
+            <div className="rounded-xl border border-rose-300/35 bg-rose-50/75 p-3 shadow-sm">
               <p className="text-[11px] font-bold uppercase tracking-wider text-rose-700/80">Aktuálna loss séria</p>
               <p className="mt-1 text-2xl font-black text-rose-700">{streakStats.currentLoss}</p>
             </div>
-            <div className="rounded-lg border border-emerald-300/30 bg-emerald-500/5 p-3">
+            <div className="rounded-xl border border-emerald-300/35 bg-emerald-50/75 p-3 shadow-sm">
               <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700/80">Najdlhšia win séria</p>
               <p className="mt-1 text-2xl font-black text-emerald-700">{streakStats.maxWin}</p>
             </div>
-            <div className="rounded-lg border border-rose-300/30 bg-rose-500/5 p-3">
+            <div className="rounded-xl border border-rose-300/35 bg-rose-50/75 p-3 shadow-sm">
               <p className="text-[11px] font-bold uppercase tracking-wider text-rose-700/80">Najdlhšia loss séria</p>
               <p className="mt-1 text-2xl font-black text-rose-700">{streakStats.maxLoss}</p>
             </div>
@@ -988,23 +997,23 @@ export function StatisticsCharts({
           subtitle="Doplnkové metriky pre detailnejší pohľad"
         >
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <div className="rounded-lg border border-border bg-muted/20 p-3">
+            <div className={cn(miniCardClass, 'bg-emerald-50/55')}>
               <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Priemerný výherný kurz</p>
               <p className="mt-1 text-lg font-black text-card-foreground">{quickStats.avgWinningOdds.toFixed(2)}</p>
             </div>
-            <div className="rounded-lg border border-border bg-muted/20 p-3">
+            <div className={cn(miniCardClass, 'bg-rose-50/55')}>
               <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Priemerný prehratý kurz</p>
               <p className="mt-1 text-lg font-black text-card-foreground">{quickStats.avgLosingOdds.toFixed(2)}</p>
             </div>
-            <div className="rounded-lg border border-border bg-muted/20 p-3">
+            <div className={cn(miniCardClass, 'bg-sky-50/55')}>
               <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Volatilita P/L</p>
               <p className="mt-1 text-lg font-black text-card-foreground">{quickStats.volatility.toFixed(0)} Kč</p>
             </div>
-            <div className="rounded-lg border border-border bg-muted/20 p-3">
+            <div className={cn(miniCardClass, 'bg-emerald-50/55')}>
               <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Najlepší deň</p>
               <p className="mt-1 text-sm font-black text-emerald-700">{quickStats.bestDayLabel}</p>
             </div>
-            <div className="rounded-lg border border-border bg-muted/20 p-3 sm:col-span-2">
+            <div className={cn(miniCardClass, 'bg-rose-50/55 sm:col-span-2')}>
               <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Najslabší deň</p>
               <p className="mt-1 text-sm font-black text-rose-700">{quickStats.worstDayLabel}</p>
             </div>
@@ -1020,16 +1029,19 @@ export function StatisticsCharts({
           ) : (
             <div className="space-y-2">
               {bestContextByTipper.map((row) => (
-                <div key={row.userName} className="rounded-lg border border-border bg-muted/20 p-3">
-                  <p className="text-sm font-semibold text-card-foreground">{row.userName}</p>
+                <div key={row.userName} className={miniCardClass}>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-card-foreground">{row.userName}</p>
+                    <span className={infoPillClass}>TOP kontext</span>
+                  </div>
                   <div className="mt-1 grid gap-2 text-xs sm:grid-cols-2">
-                    <div className="rounded-md border border-border/70 bg-background/70 px-2 py-1.5">
+                    <div className="rounded-lg border border-emerald-500/15 bg-emerald-50/60 px-2.5 py-2">
                       <p className="text-muted-foreground">Top šport</p>
                       <p className="font-semibold text-card-foreground">
                         {row.bestSport ? `${row.bestSport.name} (${row.bestSport.yield.toFixed(1)}%, ${row.bestSport.tips} tipov)` : 'Nedostatok dát'}
                       </p>
                     </div>
-                    <div className="rounded-md border border-border/70 bg-background/70 px-2 py-1.5">
+                    <div className="rounded-lg border border-sky-500/15 bg-sky-50/60 px-2.5 py-2">
                       <p className="text-muted-foreground">Top liga</p>
                       <p className="font-semibold text-card-foreground">
                         {row.bestLeague ? `${row.bestLeague.name} (${row.bestLeague.yield.toFixed(1)}%, ${row.bestLeague.tips} tipov)` : 'Nedostatok dát'}
@@ -1079,8 +1091,17 @@ export function StatisticsCharts({
         {topTicketWins.length > 0 && (
           <div className="mt-3 grid gap-2 sm:grid-cols-3">
             {topTicketWins.map((ticket, index) => (
-              <div key={ticket.id} className="rounded-lg border border-border bg-muted/20 px-3 py-2">
-                <p className="text-xs font-semibold text-muted-foreground">#{index + 1} • {formatDate(ticket.date)}</p>
+              <div
+                key={ticket.id}
+                className={cn(
+                  miniCardClass,
+                  index === 0 && 'border-amber-400/35 bg-amber-50/70',
+                )}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-muted-foreground">#{index + 1} • {formatDate(ticket.date)}</p>
+                  <span className={infoPillClass}>TOP tiket</span>
+                </div>
                 <p className="truncate text-sm font-medium text-foreground">{ticket.description}</p>
                 <p className="text-xs text-muted-foreground">Kurz {ticket.odds.toFixed(2)} • Vklad {ticket.stake.toFixed(0)} Kč</p>
                 <p className="text-sm font-semibold text-emerald-600">Čistý zisk: {formatCurrency(ticket.profit)}</p>
