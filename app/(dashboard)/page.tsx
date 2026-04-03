@@ -487,73 +487,73 @@ export default async function OverviewPage() {
 
   return (
     <div className="relative mx-auto max-w-7xl space-y-6">
-      <div className="pointer-events-none absolute inset-x-8 top-8 -z-10 h-64 rounded-full bg-emerald-400/10 blur-3xl" />
-      <div className="pointer-events-none absolute right-0 top-[28rem] -z-10 h-72 w-72 rounded-full bg-cyan-400/10 blur-3xl" />
-      <div className="pointer-events-none absolute left-8 top-[62rem] -z-10 h-72 w-72 rounded-full bg-amber-300/10 blur-3xl" />
-      <section className="relative overflow-hidden rounded-[28px] border border-border/80 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-5 text-white shadow-[0_30px_80px_rgba(15,23,42,0.28)] md:p-7">
-        <div className="absolute -right-16 -top-14 h-48 w-48 rounded-full bg-emerald-400/20 blur-3xl" />
-        <div className="absolute left-1/3 top-1/2 h-40 w-40 rounded-full bg-cyan-400/15 blur-3xl" />
-        <div className="absolute -bottom-20 left-14 h-56 w-56 rounded-full bg-amber-300/10 blur-3xl" />
+      <div className="pointer-events-none absolute inset-x-8 top-8 -z-10 h-64 rounded-full bg-amber-300/15 blur-3xl" />
+      <div className="pointer-events-none absolute right-0 top-[28rem] -z-10 h-72 w-72 rounded-full bg-orange-300/15 blur-3xl" />
+      <div className="pointer-events-none absolute left-8 top-[62rem] -z-10 h-72 w-72 rounded-full bg-emerald-300/10 blur-3xl" />
+      <section className="relative overflow-hidden rounded-[28px] border border-border/70 bg-gradient-to-br from-amber-50/90 via-card to-orange-50/75 p-5 text-card-foreground shadow-sm md:p-7">
+        <div className="absolute -right-16 -top-14 h-48 w-48 rounded-full bg-amber-300/30 blur-3xl" />
+        <div className="absolute left-1/3 top-1/2 h-40 w-40 rounded-full bg-orange-300/20 blur-3xl" />
+        <div className="absolute -bottom-20 left-14 h-56 w-56 rounded-full bg-emerald-300/12 blur-3xl" />
         <div className="relative grid gap-6 xl:grid-cols-[1.4fr_0.9fr]">
           <div className="space-y-5">
-            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/15 bg-white/[0.08] px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-white/80 backdrop-blur">
+            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-amber-700 backdrop-blur">
               <Sparkles className="h-3.5 w-3.5" />
               Hlavný prehľad
             </div>
             <div className="space-y-3">
               <div className="flex flex-wrap items-center gap-3">
                 <h1 className="text-3xl font-black tracking-tight md:text-5xl">Prehľad</h1>
-                <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-100">
+                <span className="rounded-full border border-emerald-300/25 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700">
                   Aktuálny stav účtu
                 </span>
               </div>
-              <p className="max-w-2xl text-sm font-medium leading-6 text-slate-200 md:text-base">
+              <p className="max-w-2xl text-sm font-medium leading-6 text-muted-foreground md:text-base">
                 Dnes máš výsledok {formatCurrency(todayProfit, true)}, otvorené sú {openTickets} tikety a na jednom mieste vidíš,
                 koľko máš rozbehnuté, komu sa aktuálne darí najviac a ako sa vyvíjal účet za posledné dni.
               </p>
             </div>
 
             <div className="grid gap-3 md:grid-cols-[1.2fr_0.8fr]">
-              <div className="rounded-[24px] border border-white/10 bg-white/[0.08] p-4 backdrop-blur">
-                <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-white/55">Aktuálny bankroll</p>
+              <div className="rounded-[24px] border border-border/70 bg-white/75 p-4 shadow-sm backdrop-blur">
+                <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-muted-foreground">Aktuálny bankroll</p>
                 <div className="mt-2 flex items-end gap-3">
                   <p className="text-4xl font-black tracking-tight md:text-6xl">
                     {Math.floor(currentBankroll).toLocaleString('sk-SK')}
                   </p>
-                  <span className="pb-2 text-sm font-semibold text-white/65">Kč</span>
+                  <span className="pb-2 text-sm font-semibold text-muted-foreground">Kč</span>
                 </div>
                 <div className="mt-4 grid gap-2 sm:grid-cols-3">
-                  <div className="rounded-2xl border border-white/10 bg-black/10 px-3 py-2">
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-white/50">Zmena za 14 dní</p>
-                    <p className={`mt-1 text-sm font-bold ${trendDelta >= 0 ? 'text-emerald-200' : 'text-rose-200'}`}>
+                  <div className="rounded-2xl border border-border/70 bg-emerald-50/60 px-3 py-2">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Zmena za 14 dní</p>
+                    <p className={`mt-1 text-sm font-bold ${trendDelta >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                       {formatCurrency(trendDelta, true)}
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-black/10 px-3 py-2">
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-white/50">Rozbehnuté peniaze</p>
-                    <p className="mt-1 text-sm font-bold text-amber-100">{formatCurrency(totalOpenExposure)}</p>
+                  <div className="rounded-2xl border border-border/70 bg-amber-50/70 px-3 py-2">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Rozbehnuté peniaze</p>
+                    <p className="mt-1 text-sm font-bold text-amber-700">{formatCurrency(totalOpenExposure)}</p>
                   </div>
-                  <div className="rounded-2xl border border-white/10 bg-black/10 px-3 py-2">
-                    <p className="text-[10px] uppercase tracking-[0.2em] text-white/50">Sľubné otvorené tikety</p>
-                    <p className="mt-1 text-sm font-bold text-cyan-100">{highConfidencePending} tiketov</p>
+                  <div className="rounded-2xl border border-border/70 bg-cyan-50/70 px-3 py-2">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Sľubné otvorené tikety</p>
+                    <p className="mt-1 text-sm font-bold text-cyan-700">{highConfidencePending} tiketov</p>
                   </div>
                 </div>
-                <div className="mt-3 rounded-2xl border border-white/10 bg-black/10 px-3 py-3">
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-white/50">Najviac sa darí</p>
+                <div className="mt-3 rounded-2xl border border-border/70 bg-amber-50/55 px-3 py-3">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Najviac sa darí</p>
                   <div className="mt-1 flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-white">
+                      <p className="truncate text-sm font-bold text-card-foreground">
                         {bestPerformer?.user_name || 'Zatiaľ bez dát'}
                       </p>
-                      <p className="text-xs text-white/60">
+                      <p className="text-xs text-muted-foreground">
                         {bestPerformer
                           ? `${bestPerformer.wins} správnych tipov • úspešnosť ${formatPercent(bestPerformer.win_rate)}`
                           : 'Mesačné poradie sa zobrazí, keď budú dáta'}
                       </p>
                     </div>
                     <div className="shrink-0 rounded-2xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-right">
-                      <p className="text-[10px] uppercase tracking-[0.18em] text-amber-100/60">Výnos</p>
-                      <p className="text-sm font-black text-amber-100">
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-amber-700/70">Výnos</p>
+                      <p className="text-sm font-black text-amber-700">
                         {bestPerformer ? formatPercent(bestPerformer.yield) : '-'}
                       </p>
                     </div>
@@ -561,10 +561,10 @@ export default async function OverviewPage() {
                 </div>
               </div>
 
-              <div className="rounded-[24px] border border-white/10 bg-white/[0.08] p-4 backdrop-blur">
+              <div className="rounded-[24px] border border-border/70 bg-white/75 p-4 shadow-sm backdrop-blur">
                 <div className="flex items-center justify-between">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-white/55">Trend bankrollu</p>
-                  <span className="rounded-full border border-white/10 px-2 py-1 text-[10px] font-semibold text-white/55">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-muted-foreground">Trend bankrollu</p>
+                  <span className="rounded-full border border-border/70 bg-white/80 px-2 py-1 text-[10px] font-semibold text-muted-foreground">
                     posledných {trend.length} dní
                   </span>
                 </div>
@@ -575,7 +575,7 @@ export default async function OverviewPage() {
                     negativeClassName="stroke-rose-300"
                   />
                 </div>
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-white/60">
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                   <span>{trend[0]?.label}</span>
                   <span>{trend[trend.length - 1]?.label}</span>
                 </div>
@@ -584,42 +584,42 @@ export default async function OverviewPage() {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-            <div className="rounded-[24px] border border-white/10 bg-white/[0.08] p-4 backdrop-blur">
+            <div className="rounded-[24px] border border-border/70 bg-white/75 p-4 shadow-sm backdrop-blur">
               <div className="flex items-center justify-between">
-                <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-white/55">Rýchly stav</p>
-                <Wallet className="h-4 w-4 text-white/55" />
+                <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-muted-foreground">Rýchly stav</p>
+                <Wallet className="h-4 w-4 text-muted-foreground" />
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                <div className="rounded-2xl border border-emerald-300/10 bg-emerald-400/[0.08] px-3 py-3">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/70">Dnešný profit</p>
-                  <p className={`mt-1 text-xl font-black ${todayProfit >= 0 ? 'text-emerald-100' : 'text-rose-100'}`}>
+                <div className="rounded-2xl border border-emerald-300/20 bg-emerald-50/75 px-3 py-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-700/70">Dnešný profit</p>
+                  <p className={`mt-1 text-xl font-black ${todayProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
                     {formatCurrency(todayProfit, true)}
                   </p>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-black/10 px-3 py-3">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/50">Možná výhra</p>
-                  <p className="mt-1 text-xl font-black text-amber-50">{formatCurrency(pendingPotentialWins)}</p>
+                <div className="rounded-2xl border border-amber-300/20 bg-amber-50/75 px-3 py-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-amber-700/70">Možná výhra</p>
+                  <p className="mt-1 text-xl font-black text-amber-700">{formatCurrency(pendingPotentialWins)}</p>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-black/10 px-3 py-3">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/50">Otvorené tikety</p>
-                  <p className="mt-1 text-xl font-black text-cyan-50">{openTickets}</p>
+                <div className="rounded-2xl border border-cyan-300/20 bg-cyan-50/75 px-3 py-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-cyan-700/70">Otvorené tikety</p>
+                  <p className="mt-1 text-xl font-black text-cyan-700">{openTickets}</p>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-black/10 px-3 py-3">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/50">Úspešnosť</p>
-                  <p className="mt-1 text-xl font-black text-white">{formatPercent(stats.win_rate)}</p>
+                <div className="rounded-2xl border border-border/70 bg-white/85 px-3 py-3">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Úspešnosť</p>
+                  <p className="mt-1 text-xl font-black text-card-foreground">{formatPercent(stats.win_rate)}</p>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-[24px] border border-white/10 bg-white/[0.08] p-4 backdrop-blur">
+            <div className="rounded-[24px] border border-border/70 bg-white/75 p-4 shadow-sm backdrop-blur">
               <div className="flex items-center justify-between">
-                <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-white/55">Akcie</p>
-                <Zap className="h-4 w-4 text-white/55" />
+                <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-muted-foreground">Akcie</p>
+                <Zap className="h-4 w-4 text-muted-foreground" />
               </div>
               <div className="mt-4 grid gap-2">
                 <Link
                   href="/tickets"
-                  className="inline-flex items-center justify-between rounded-2xl border border-emerald-300/15 bg-emerald-400/10 px-4 py-3 text-sm font-semibold text-emerald-50 transition-transform hover:-translate-y-0.5"
+                  className="inline-flex items-center justify-between rounded-2xl border border-emerald-300/25 bg-emerald-50/85 px-4 py-3 text-sm font-semibold text-emerald-700 shadow-sm transition-transform hover:-translate-y-0.5"
                 >
                   <span className="inline-flex items-center gap-2">
                     <Plus className="h-4 w-4" />
@@ -629,7 +629,7 @@ export default async function OverviewPage() {
                 </Link>
                 <Link
                   href="/statistics"
-                  className="inline-flex items-center justify-between rounded-2xl border border-white/10 bg-black/10 px-4 py-3 text-sm font-semibold text-white/[0.85] transition-transform hover:-translate-y-0.5"
+                  className="inline-flex items-center justify-between rounded-2xl border border-border/70 bg-white/85 px-4 py-3 text-sm font-semibold text-card-foreground shadow-sm transition-transform hover:-translate-y-0.5"
                 >
                   <span className="inline-flex items-center gap-2">
                     <LineChart className="h-4 w-4" />
@@ -644,16 +644,16 @@ export default async function OverviewPage() {
       </section>
 
       <section className="grid gap-4">
-        <article className="rounded-[26px] border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-5 text-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
+        <article className="rounded-[26px] border border-border/70 bg-gradient-to-br from-amber-50/80 via-card to-orange-50/60 p-5 text-card-foreground shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="inline-flex items-center gap-2 rounded-full border border-cyan-400/15 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-100">
+              <p className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-700">
                 <Sparkles className="h-3.5 w-3.5" />
                 Tikety
               </p>
-              <h2 className="mt-3 text-xl font-black tracking-tight text-white">Dnešné a otvorené tikety</h2>
+              <h2 className="mt-3 text-xl font-black tracking-tight text-card-foreground">Dnešné a otvorené tikety</h2>
             </div>
-            <Link href="/tickets" className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-200 hover:text-emerald-100">
+            <Link href="/tickets" className="inline-flex items-center gap-1 text-sm font-semibold text-emerald-700 hover:text-emerald-600">
               Všetky tikety
               <ArrowRight className="h-4 w-4" />
             </Link>
@@ -661,11 +661,11 @@ export default async function OverviewPage() {
 
           <div className="mt-5 grid gap-3">
             {recentTickets.length === 0 ? (
-              <div className="rounded-[24px] border border-dashed border-white/15 bg-white/[0.04] p-12 text-center">
-                <p className="font-medium text-white/70">Nemáš dnešné ani otvorené tikety.</p>
+              <div className="rounded-[24px] border border-dashed border-border/70 bg-white/70 p-12 text-center shadow-sm">
+                <p className="font-medium text-muted-foreground">Nemáš dnešné ani otvorené tikety.</p>
                 <Link
                   href="/tickets"
-                  className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-sm font-semibold text-emerald-100"
+                  className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-50/85 px-4 py-2 text-sm font-semibold text-emerald-700"
                 >
                   Pridať tiket
                   <Plus className="h-4 w-4" />
@@ -679,16 +679,16 @@ export default async function OverviewPage() {
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1.3fr_0.7fr]">
-        <article className="rounded-[26px] border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-5 text-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
+        <article className="rounded-[26px] border border-border/70 bg-gradient-to-br from-amber-50/80 via-card to-orange-50/55 p-5 text-card-foreground shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.08] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200">
+              <p className="inline-flex items-center gap-2 rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-700">
                 <Flame className="h-3.5 w-3.5" />
                 Forma tipérov
               </p>
-              <h2 className="mt-3 text-xl font-black tracking-tight text-white">Mesačný leaderboard</h2>
+              <h2 className="mt-3 text-xl font-black tracking-tight text-card-foreground">Mesačný leaderboard</h2>
             </div>
-            <Link href="/ranking" className="text-sm font-semibold text-emerald-200 hover:text-emerald-100">
+            <Link href="/ranking" className="text-sm font-semibold text-emerald-700 hover:text-emerald-600">
               Viac
             </Link>
           </div>
@@ -697,7 +697,7 @@ export default async function OverviewPage() {
             {monthlyLeaderboard.slice(0, 4).map((user, index) => (
               <div
                 key={user.user_id}
-                className="rounded-[22px] border border-white/10 bg-white/[0.06] p-4"
+                className="rounded-[22px] border border-border/70 bg-white/80 p-4 shadow-sm"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -722,24 +722,24 @@ export default async function OverviewPage() {
                         )}
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-bold text-white">{user.user_name}</p>
-                        <p className="text-xs text-white/60">
+                        <p className="truncate text-sm font-bold text-card-foreground">{user.user_name}</p>
+                        <p className="text-xs text-muted-foreground">
                           {user.wins} OK • Ø {user.average_odds.toFixed(2)}
                         </p>
                       </div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-black text-white">{formatPercent(user.win_rate)}</p>
-                    <p className={user.total_profit >= 0 ? 'text-xs font-semibold text-emerald-300' : 'text-xs font-semibold text-rose-300'}>
+                    <p className="text-sm font-black text-card-foreground">{formatPercent(user.win_rate)}</p>
+                    <p className={user.total_profit >= 0 ? 'text-xs font-semibold text-emerald-700' : 'text-xs font-semibold text-rose-700'}>
                       {formatCurrency(user.total_profit, true)}
                     </p>
                   </div>
                 </div>
 
                 <div className="mt-3 flex items-center justify-between gap-3">
-                  <div className="text-xs text-white/60">
-                    <p>Yield <span className={user.yield >= 0 ? 'font-semibold text-emerald-300' : 'font-semibold text-rose-300'}>{formatPercent(user.yield)}</span></p>
+                  <div className="text-xs text-muted-foreground">
+                    <p>Yield <span className={user.yield >= 0 ? 'font-semibold text-emerald-700' : 'font-semibold text-rose-700'}>{formatPercent(user.yield)}</span></p>
                   </div>
                   <SmallTrend
                     values={user.trend.map((point) => point.value)}
@@ -751,32 +751,32 @@ export default async function OverviewPage() {
           </div>
         </article>
 
-        <article className="rounded-[26px] border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-5 text-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
+        <article className="rounded-[26px] border border-border/70 bg-gradient-to-br from-amber-50/80 via-card to-orange-50/55 p-5 text-card-foreground shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.08] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-200">
+              <p className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-700">
                 <LineChart className="h-3.5 w-3.5" />
                 Vývoj účtu
               </p>
-              <h2 className="mt-3 text-xl font-black tracking-tight text-white">Vývoj bankrollu za posledných 14 dní</h2>
+              <h2 className="mt-3 text-xl font-black tracking-tight text-card-foreground">Vývoj bankrollu za posledných 14 dní</h2>
             </div>
-            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${trendDelta >= 0 ? 'bg-emerald-400/10 text-emerald-200' : 'bg-rose-400/10 text-rose-200'}`}>
+            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${trendDelta >= 0 ? 'bg-emerald-400/10 text-emerald-700' : 'bg-rose-400/10 text-rose-700'}`}>
               {formatCurrency(trendDelta, true)}
             </span>
           </div>
 
-          <div className="mt-5 rounded-[24px] border border-white/10 bg-white/[0.06] p-4">
+          <div className="mt-5 rounded-[24px] border border-border/70 bg-white/80 p-4 shadow-sm">
             <TrendSparkline
               values={trendValues}
               positiveClassName="stroke-emerald-500"
               negativeClassName="stroke-rose-500"
               height={180}
             />
-            <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-white/65 sm:grid-cols-4 md:grid-cols-7 xl:grid-cols-7">
+            <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-muted-foreground sm:grid-cols-4 md:grid-cols-7 xl:grid-cols-7">
               {trend.map((point) => (
-                <div key={point.key} className="space-y-1 rounded-xl border border-white/10 bg-black/10 px-2 py-2 text-center">
+                <div key={point.key} className="space-y-1 rounded-xl border border-border/70 bg-amber-50/50 px-2 py-2 text-center">
                   <p className="font-semibold uppercase">{point.shortLabel}</p>
-                  <p className={point.dayProfit >= 0 ? 'text-emerald-300' : 'text-rose-300'}>
+                  <p className={point.dayProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}>
                     {point.dayProfit >= 0 ? '+' : ''}
                     {Math.round(point.dayProfit)}
                   </p>
