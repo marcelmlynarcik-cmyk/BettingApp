@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { cn } from '@/lib/utils'
 import { StatisticsCharts } from './charts'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -1303,14 +1304,14 @@ export default async function StatisticsPage({
         </div>
       )}
 
-      <details className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
+      <details className="rounded-2xl border border-border/70 bg-gradient-to-br from-amber-50/70 via-card to-orange-50/70 p-4 shadow-sm sm:p-5">
         <summary className="cursor-pointer list-none select-none">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-sm font-semibold tracking-tight text-card-foreground sm:text-base">KPI prehľad</h2>
               <p className="mt-0.5 text-xs text-muted-foreground">Rozbaľovací súhrn metrík. Prejdi kurzorom na info ikonu pre vysvetlenie.</p>
             </div>
-            <span className="rounded-md border border-border px-2 py-1 text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+            <span className="rounded-md border border-amber-500/25 bg-amber-500/10 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-amber-700">
               Rozbaliť/Zbaliť
             </span>
           </div>
@@ -1319,8 +1320,15 @@ export default async function StatisticsPage({
           {metricItems.map((item) => {
             const Icon = item.icon
             return (
-              <div key={item.key} className="rounded-lg border border-border/80 bg-background/60 p-3">
-                <div className="flex items-start justify-between gap-2">
+              <div
+                key={item.key}
+                className={cn(
+                  'rounded-xl border border-border/70 bg-white/75 p-3 shadow-sm backdrop-blur transition-all',
+                  item.tone === 'success' && 'border-emerald-500/20 bg-emerald-50/45',
+                  item.tone === 'danger' && 'border-rose-500/20 bg-rose-50/45',
+                )}
+              >
+                <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-1.5">
                     <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{item.title}</p>
                     <Tooltip>
@@ -1339,19 +1347,30 @@ export default async function StatisticsPage({
                     </Tooltip>
                   </div>
                   <div
-                    className={`rounded-md p-1.5 ${
-                      item.tone === 'success'
-                        ? 'bg-emerald-500/10 text-emerald-600'
-                        : item.tone === 'danger'
-                          ? 'bg-rose-500/10 text-rose-600'
-                          : 'bg-secondary text-muted-foreground'
-                    }`}
+                    className={cn(
+                      'rounded-lg border p-2 shadow-sm',
+                      item.tone === 'success' && 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700',
+                      item.tone === 'danger' && 'border-rose-500/20 bg-rose-500/10 text-rose-700',
+                      item.tone === 'neutral' && 'border-amber-500/20 bg-amber-500/10 text-amber-700',
+                    )}
                   >
-                    <Icon className="h-4 w-4" />
+                    <Icon className="h-4.5 w-4.5" />
                   </div>
                 </div>
-                <p className="mt-2 text-xl font-black text-card-foreground">{item.value}</p>
-                <p className="mt-1 text-xs font-medium text-muted-foreground">{item.subtitle}</p>
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <p className="text-xl font-black text-card-foreground">{item.value}</p>
+                  <span
+                    className={cn(
+                      'shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                      item.tone === 'success' && 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700',
+                      item.tone === 'danger' && 'border-rose-500/25 bg-rose-500/10 text-rose-700',
+                      item.tone === 'neutral' && 'border-amber-500/25 bg-amber-500/10 text-amber-700',
+                    )}
+                  >
+                    {item.tone === 'success' ? 'Silné' : item.tone === 'danger' ? 'Riziko' : 'Prehľad'}
+                  </span>
+                </div>
+                <p className="mt-1.5 text-xs font-medium text-muted-foreground">{item.subtitle}</p>
               </div>
             )
           })}
