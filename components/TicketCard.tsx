@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 import type { Ticket } from '@/lib/types'
@@ -27,7 +27,6 @@ function relativeDateLabel(dateValue: string) {
 }
 
 export function TicketCard({ ticket, expandable = false, showRelativeDate = false }: TicketCardProps) {
-  const router = useRouter()
   const pendingAmount = Number(ticket.possible_win || 0)
   const [isExpanded, setIsExpanded] = useState(false)
   const predictions = ticket.predictions || []
@@ -94,7 +93,7 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
   return (
     <div
       className={cn(
-        'group rounded-xl border p-3 shadow-sm transition-all',
+        'group rounded-2xl border p-4 shadow-sm transition-all',
         getCardToneClass(ticket.status),
       )}
     >
@@ -140,7 +139,7 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
 
       <div className="mt-3">
         <p className="mb-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-card-foreground/70">Stav tipov</p>
-        <div className="grid grid-cols-3 gap-1 rounded-lg border border-border/70 bg-muted/30 p-1">
+        <div className="grid grid-cols-3 gap-1 rounded-xl border border-border/70 bg-white/70 p-1.5 shadow-sm backdrop-blur">
           {predictionSegments.map((result, index) => (
             <div
               key={`${ticket.id}-segment-${index}`}
@@ -150,7 +149,7 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
         </div>
       </div>
 
-      <div className="mt-2 rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-2.5 py-1.5">
+      <div className="mt-2 rounded-xl border border-cyan-500/20 bg-cyan-50/70 px-3 py-2 shadow-sm">
         <p className="text-[10px] font-black uppercase tracking-wide text-cyan-900/80">
           Šanca tiketu
         </p>
@@ -161,11 +160,11 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
         </p>
       </div>
 
-      <div className="mt-2.5 grid grid-cols-3 items-center gap-2">
+      <div className="mt-3 grid grid-cols-3 items-center gap-2">
         {expandable && predictions.length > 0 ? (
           <button
             onClick={() => setIsExpanded((prev) => !prev)}
-            className="inline-flex items-center justify-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-card-foreground/75 hover:bg-secondary"
+            className="inline-flex items-center justify-center gap-1 rounded-xl border border-border/70 bg-white/75 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-card-foreground/75 shadow-sm backdrop-blur hover:bg-white"
           >
             {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
             {isExpanded ? 'Skryť tipy' : `Tipy (${predictions.length})`}
@@ -179,7 +178,7 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
             href={externalTicketHref}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center gap-1 rounded-lg border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-sky-700 hover:bg-sky-500/20"
+            className="inline-flex items-center justify-center gap-1 rounded-xl border border-sky-500/30 bg-sky-50/75 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-sky-700 shadow-sm hover:bg-sky-100/90"
           >
             URL
             <ExternalLink className="h-3.5 w-3.5" />
@@ -188,13 +187,14 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
           <span className="h-7" />
         )}
 
-        <button
-          onClick={() => router.push(`/tickets/${ticket.id}`)}
-          className="inline-flex items-center justify-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[11px] font-bold uppercase tracking-wide text-emerald-700 hover:bg-emerald-500/20"
+        <Link
+          href={`/tickets/${ticket.id}`}
+          scroll
+          className="inline-flex items-center justify-center gap-1 rounded-xl border border-emerald-500/30 bg-emerald-50/80 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-emerald-700 shadow-sm hover:bg-emerald-100/90"
         >
           Detail
           <ExternalLink className="h-3.5 w-3.5" />
-        </button>
+        </Link>
       </div>
 
       {expandable && isExpanded && predictions.length > 0 && (
@@ -208,7 +208,7 @@ export function TicketCard({ ticket, expandable = false, showRelativeDate = fals
             return (
               <div
                 key={prediction.id}
-                className="flex items-center justify-between rounded-lg border border-border bg-background/60 px-2.5 py-1.5"
+                className="flex items-center justify-between rounded-xl border border-border/70 bg-white/75 px-3 py-2 shadow-sm backdrop-blur"
               >
                 <div>
                   <p className="text-xs font-semibold text-card-foreground">{userName}</p>

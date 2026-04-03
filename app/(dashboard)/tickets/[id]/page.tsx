@@ -123,12 +123,18 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
     }
   }
 
+  const externalTicketHref =
+    ticket.ticket_url && /^https?:\/\//i.test(ticket.ticket_url) ? ticket.ticket_url : ticket.ticket_url ? `https://${ticket.ticket_url}` : null
+
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="relative mx-auto max-w-4xl space-y-6">
+      <div className="pointer-events-none absolute inset-x-8 top-4 -z-10 h-48 rounded-full bg-amber-300/15 blur-3xl" />
+      <div className="pointer-events-none absolute right-0 top-64 -z-10 h-56 w-56 rounded-full bg-orange-300/15 blur-3xl" />
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <Link 
           href="/tickets" 
-          className="flex items-center gap-2 text-slate-500 hover:text-emerald-600 transition-colors font-bold text-sm uppercase tracking-wider"
+          className="flex items-center gap-2 text-muted-foreground hover:text-emerald-600 transition-colors font-bold text-sm uppercase tracking-wider"
         >
           <ArrowLeft className="h-4 w-4" />
           Späť na tikety
@@ -136,20 +142,22 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
         <TicketActions ticketId={ticket.id} description={ticket.description || undefined} />
       </div>
 
-      <div className="flex flex-col gap-1">
-        <h1 className="text-3xl font-black text-black tracking-tight">
-          {ticket.description || 'Detail tiketu'}
-        </h1>
-        <p className="text-slate-600 font-medium flex items-center gap-2">
-          <Calendar className="h-4 w-4" />
-          {format(new Date(ticket.date), 'd. MMMM yyyy')}
-        </p>
+      <div className="rounded-[28px] border border-border/70 bg-gradient-to-br from-amber-50/80 via-card to-orange-50/70 p-5 shadow-sm">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-3xl font-black text-black tracking-tight">
+            {ticket.description || 'Detail tiketu'}
+          </h1>
+          <p className="flex items-center gap-2 font-medium text-muted-foreground">
+            <Calendar className="h-4 w-4" />
+            {format(new Date(ticket.date), 'd. MMMM yyyy')}
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2 space-y-6">
-          <div className="rounded-xl border border-border bg-card shadow-md overflow-hidden">
-            <div className="border-b border-border bg-secondary/50 p-4">
+          <div className="overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-br from-amber-50/70 via-card to-orange-50/40 shadow-sm">
+            <div className="border-b border-border/70 bg-white/60 p-4 backdrop-blur">
               <h3 className="font-bold text-card-foreground uppercase tracking-wider text-xs">Tipy na tikete</h3>
             </div>
             <div className="p-4">
@@ -160,8 +168,8 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
             </div>
           </div>
 
-          {ticket.ticket_url && (
-            <div className="rounded-xl border border-border bg-emerald-500/5 p-4 flex items-center justify-between">
+          {externalTicketHref && (
+            <div className="flex items-center justify-between rounded-2xl border border-emerald-300/25 bg-emerald-50/80 p-4 shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="rounded-full bg-emerald-500/10 p-2">
                   <ExternalLink className="h-4 w-4 text-emerald-500" />
@@ -172,10 +180,10 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
                 </div>
               </div>
               <a 
-                href={ticket.ticket_url} 
+                href={externalTicketHref} 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest hover:bg-emerald-400 transition-colors shadow-lg shadow-emerald-500/20"
+                className="rounded-xl border border-emerald-400/20 bg-emerald-500 px-4 py-2 text-xs font-black uppercase tracking-widest text-white transition-colors hover:bg-emerald-400 shadow-lg shadow-emerald-500/20"
               >
                 Otvoriť
               </a>
@@ -184,25 +192,25 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
         </div>
 
         <div className="space-y-6">
-          <div className="rounded-xl border border-border bg-card shadow-md p-6 sticky top-6">
+          <div className="sticky top-6 rounded-2xl border border-border/70 bg-gradient-to-br from-amber-50/70 via-card to-orange-50/40 p-6 shadow-sm">
             <h3 className="font-bold text-card-foreground uppercase tracking-wider text-xs mb-6">Súhrn tiketu</h3>
             
             <div className="space-y-4">
-              <div className="flex justify-between items-center py-2 border-b border-border/50">
+              <div className="flex items-center justify-between rounded-xl border border-border/60 bg-white/70 px-3 py-2 shadow-sm backdrop-blur">
                 <span className="text-muted-foreground text-sm font-medium flex items-center gap-2">
                   <DollarSign className="h-4 w-4" /> Vklad
                 </span>
                 <span className="text-card-foreground font-bold">{ticket.stake.toFixed(0)} Kč</span>
               </div>
               
-              <div className="flex justify-between items-center py-2 border-b border-border/50">
+              <div className="flex items-center justify-between rounded-xl border border-border/60 bg-white/70 px-3 py-2 shadow-sm backdrop-blur">
                 <span className="text-muted-foreground text-sm font-medium flex items-center gap-2">
                   <BarChart3 className="h-4 w-4" /> Kurz
                 </span>
                 <span className="text-card-foreground font-bold">{ticket.combined_odds?.toFixed(2)}</span>
               </div>
 
-              <div className="flex justify-between items-center py-2 border-b border-border/50">
+              <div className="flex items-center justify-between rounded-xl border border-emerald-300/20 bg-emerald-50/70 px-3 py-2 shadow-sm">
                 <span className="text-muted-foreground text-sm font-medium flex items-center gap-2">
                   <Target className="h-4 w-4" /> Možná výhra
                 </span>
@@ -211,7 +219,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
                 </span>
               </div>
 
-              <div className="flex justify-between items-center py-2 border-b border-border/50">
+              <div className="flex items-center justify-between rounded-xl border border-cyan-300/20 bg-cyan-50/75 px-3 py-2 shadow-sm">
                 <span className="text-muted-foreground text-sm font-medium flex items-center gap-2">
                   <Info className="h-4 w-4" /> Šanca tiketu
                 </span>
@@ -224,10 +232,10 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
 
               <div className="pt-4">
                 <div className={cn(
-                  "rounded-lg p-4 text-center border",
-                  ticket.status === 'win' ? "bg-emerald-500/10 border-emerald-500/20" :
-                  ticket.status === 'loss' ? "bg-rose-500/10 border-rose-500/20" :
-                  "bg-amber-500/10 border-amber-500/20"
+                  "rounded-xl border p-4 text-center shadow-sm",
+                  ticket.status === 'win' ? "bg-emerald-50/80 border-emerald-500/20" :
+                  ticket.status === 'loss' ? "bg-rose-50/80 border-rose-500/20" :
+                  "bg-amber-50/80 border-amber-500/20"
                 )}>
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-1">
                     Aktuálny stav
@@ -244,8 +252,8 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
               </div>
 
               {ticket.status === 'win' && (
-                <div className="bg-emerald-500 p-4 rounded-lg shadow-lg shadow-emerald-500/20">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/60 mb-1">
+                <div className="rounded-xl border border-emerald-400/25 bg-emerald-500 p-4 shadow-lg shadow-emerald-500/20">
+                  <p className="mb-1 text-[10px] font-black uppercase tracking-[0.2em] text-white/60">
                     Čistý zisk
                   </p>
                   <p className="text-2xl font-black text-white">
