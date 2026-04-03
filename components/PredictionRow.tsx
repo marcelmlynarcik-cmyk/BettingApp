@@ -23,7 +23,7 @@ export function PredictionRow({
 
   const handleOddsSubmit = async () => {
     const val = parseFloat(editedOdds)
-    if (isNaN(val) || val <= 1) return
+    if (isNaN(val) || val < 0) return
     await onUpdateOdds?.(val)
     setIsEditingOdds(false)
   }
@@ -64,16 +64,23 @@ export function PredictionRow({
               <div className="flex items-center gap-1">
                 <input
                   type="number"
+                  min="0"
                   step="0.01"
                   value={editedOdds}
                   onChange={(e) => setEditedOdds(e.target.value)}
-                  className="w-14 rounded border border-border bg-background px-1 py-0.5 text-[10px] font-bold text-card-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-16 rounded border border-border bg-background px-2 py-1 text-xs font-bold text-card-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                 />
-                <button onClick={handleOddsSubmit} className="text-emerald-600">
-                  <Check className="h-3 w-3" />
+                <button
+                  onClick={handleOddsSubmit}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md text-emerald-600 transition-colors hover:bg-emerald-500/10"
+                >
+                  <Check className="h-4 w-4" />
                 </button>
-                <button onClick={() => setIsEditingOdds(false)} className="text-rose-600">
-                  <X className="h-3 w-3" />
+                <button
+                  onClick={() => setIsEditingOdds(false)}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md text-rose-600 transition-colors hover:bg-rose-500/10"
+                >
+                  <X className="h-4 w-4" />
                 </button>
               </div>
             ) : (
@@ -82,9 +89,9 @@ export function PredictionRow({
                 {prediction.result === 'Pending' && onUpdateOdds && (
                   <button 
                     onClick={() => setIsEditingOdds(true)}
-                    className="text-muted-foreground/50 hover:text-primary transition-colors"
+                    className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-primary/10 hover:text-primary"
                   >
-                    <Edit2 className="h-2.5 w-2.5" />
+                    <Edit2 className="h-3.5 w-3.5" />
                   </button>
                 )}
               </div>

@@ -167,9 +167,9 @@ export function TicketActions({ ticketId, description }: TicketActionsProps) {
       return
     }
 
-    const invalidOdds = predictionForms.some((prediction) => !Number.isFinite(Number(prediction.odds)) || Number(prediction.odds) <= 1)
+    const invalidOdds = predictionForms.some((prediction) => !Number.isFinite(Number(prediction.odds)) || Number(prediction.odds) < 0)
     if (invalidOdds) {
-      notifyError('Každý kurz musí byť väčší ako 1')
+      notifyError('Každý kurz musí byť 0 alebo viac')
       return
     }
 
@@ -492,6 +492,7 @@ export function TicketActions({ ticketId, description }: TicketActionsProps) {
                           <input
                             type="number"
                             inputMode="decimal"
+                            min="0"
                             step="0.01"
                             value={prediction.odds}
                             onChange={(e) => updatePrediction(index, 'odds', Number(e.target.value || 0))}

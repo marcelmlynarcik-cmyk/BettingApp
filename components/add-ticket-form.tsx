@@ -77,7 +77,8 @@ function makePrediction(userId: string) {
 }
 
 function fallbackProbabilityFromOdds(odds: number) {
-  const implied = 1 / Math.max(odds, 1.01)
+  if (odds <= 0) return 0.98
+  const implied = 1 / odds
   return Math.max(0.02, Math.min(0.98, implied))
 }
 
@@ -103,7 +104,7 @@ function calculateCombinedOdds(predictions: NormalizedPrediction[]) {
 function normalizePrediction(input: PredictionInput): NormalizedPrediction | null {
   const odds = Number.parseFloat(input.odds)
   if (!input.user_id || !input.sport_id || !input.league_id) return null
-  if (!Number.isFinite(odds) || odds <= 0) return null
+  if (!Number.isFinite(odds) || odds < 0) return null
 
   return {
     user_id: input.user_id,
@@ -755,6 +756,7 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
                         <input
                           type="number"
                           inputMode="decimal"
+                          min="0"
                           step="0.01"
                           value={prediction.odds}
                           onChange={(e) => updateSinglePrediction(index, 'odds', e.target.value)}
@@ -832,6 +834,7 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
                             <input
                               type="number"
                               inputMode="decimal"
+                              min="0"
                               step="0.01"
                               value={row.odds}
                               onChange={(e) => updateMultiPrediction(user.id, rowIndex, 'odds', e.target.value)}
