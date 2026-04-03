@@ -26,6 +26,7 @@ export function TicketsPageClient({
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [page, setPage] = useState(1)
   const listTopRef = useRef<HTMLDivElement>(null)
+  const hasMountedRef = useRef(false)
   const PAGE_SIZE = 10
 
   const filteredTickets = useMemo(() => {
@@ -51,6 +52,10 @@ export function TicketsPageClient({
   const paginatedTickets = filteredTickets.slice(pageStart, pageStart + PAGE_SIZE)
 
   useEffect(() => {
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true
+      return
+    }
     listTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [currentPage, statusFilter])
 
