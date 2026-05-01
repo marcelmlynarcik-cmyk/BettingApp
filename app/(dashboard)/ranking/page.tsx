@@ -48,6 +48,15 @@ type MonthlyPerformanceWinner = {
   okTips: number
   yield: number
   avgOdds: number
+  ranking: MonthlyPerformanceRankItem[]
+}
+
+type MonthlyPerformanceRankItem = {
+  rank: number
+  userName: string
+  okTips: number
+  yield: number
+  avgOdds: number
 }
 
 type TopOddsItem = {
@@ -426,33 +435,48 @@ async function getRankingData() {
     return acc
   }, {} as Record<string, { monthKey: string; userId: string; okTips: number; oddsSum: number; oddsCount: number; totalStake: number; totalWins: number }>)
 
-  const monthlyWinners = Object.values(monthlyByUser).reduce((acc, entry) => {
+  const monthlyPerformanceByMonth = Object.values(monthlyByUser).reduce((acc, entry) => {
     const avgOdds = entry.oddsCount > 0 ? entry.oddsSum / entry.oddsCount : 0
     const netProfit = entry.totalWins - entry.totalStake
     const yieldValue = entry.totalStake > 0 ? (netProfit / entry.totalStake) * 100 : 0
     const userName = safeUsers.find((u) => u.id === entry.userId)?.name || 'Neznámy tipér'
 
-    const candidate: MonthlyPerformanceWinner = {
-      monthKey: entry.monthKey,
-      monthLabel: monthLabel(entry.monthKey),
+    if (!acc[entry.monthKey]) acc[entry.monthKey] = []
+
+    acc[entry.monthKey].push({
+      rank: 0,
       userName,
       okTips: entry.okTips,
       yield: yieldValue,
       avgOdds,
-    }
+    })
 
-    if (!acc[entry.monthKey]) {
-      acc[entry.monthKey] = candidate
-      return acc
-    }
+    return acc
+  }, {} as Record<string, MonthlyPerformanceRankItem[]>)
 
-    const current = acc[entry.monthKey]
-    if (
-      candidate.okTips > current.okTips ||
-      (candidate.okTips === current.okTips && candidate.yield > current.yield) ||
-      (candidate.okTips === current.okTips && candidate.yield === current.yield && candidate.avgOdds > current.avgOdds)
-    ) {
-      acc[entry.monthKey] = candidate
+  const monthlyWinners = Object.entries(monthlyPerformanceByMonth).reduce((acc, [monthKey, entries]) => {
+    const ranking = entries
+      .sort((a, b) => {
+        if (b.okTips !== a.okTips) return b.okTips - a.okTips
+        if (b.yield !== a.yield) return b.yield - a.yield
+        return b.avgOdds - a.avgOdds
+      })
+      .map((entry, index) => ({
+        ...entry,
+        rank: index + 1,
+      }))
+
+    const winner = ranking[0]
+    if (!winner) return acc
+
+    acc[monthKey] = {
+      monthKey,
+      monthLabel: monthLabel(monthKey),
+      userName: winner.userName,
+      okTips: winner.okTips,
+      yield: winner.yield,
+      avgOdds: winner.avgOdds,
+      ranking,
     }
 
     return acc
@@ -1188,19 +1212,37 @@ export default async function RankingPage() {
               <div
                 key={row.monthKey}
                 className={cn(
-                  'rounded-xl border border-border/70 bg-white/75 p-3 backdrop-blur',
+                  'grid gap-3 rounded-xl border border-border/70 bg-white/75 p-3 backdrop-blur md:grid-cols-[minmax(0,1fr)_minmax(8.5rem,0.9fr)]',
                   index === 0 && 'border-amber-400/35 bg-amber-50/70',
                 )}
               >
-                <div className="mb-1.5 flex items-center justify-between">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{row.monthLabel}</p>
-                  <span className="rounded-md border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">TOP</span>
+                <div className="min-w-0">
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <p className="truncate text-xs font-medium uppercase tracking-wide text-muted-foreground">{row.monthLabel}</p>
+                    <span className="shrink-0 rounded-md border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">TOP</span>
+                  </div>
+                  <p className="truncate text-sm font-semibold text-card-foreground">{row.userName}</p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                    <span>OK {row.okTips}</span>
+                    <span>•</span>
+                    <span className={cn('font-semibold', row.yield >= 0 ? 'text-emerald-600' : 'text-rose-600')}>{formatYield(row.yield)}</span>
+                  </div>
                 </div>
-                <p className="text-sm font-semibold text-card-foreground">{row.userName}</p>
-                <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>OK {row.okTips}</span>
-                  <span>•</span>
-                  <span className={cn('font-semibold', row.yield >= 0 ? 'text-emerald-600' : 'text-rose-600')}>{formatYield(row.yield)}</span>
+
+                <div className="min-w-0 rounded-lg border border-border/50 bg-muted/20 p-2">
+                  <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Rebríček mesiaca</p>
+                  <div className="space-y-1">
+                    {row.ranking.slice(1).map((item) => (
+                      <div key={`${row.monthKey}-${item.rank}-${item.userName}`} className="grid grid-cols-[1.35rem_minmax(0,1fr)_auto] items-center gap-1.5 text-[11px]">
+                        <span className="text-muted-foreground">#{item.rank}</span>
+                        <span className="truncate font-medium text-card-foreground/80">{item.userName}</span>
+                        <span className={cn('font-semibold', item.yield >= 0 ? 'text-emerald-600/85' : 'text-rose-600/85')}>{formatYield(item.yield)}</span>
+                      </div>
+                    ))}
+                    {row.ranking.length <= 1 ? (
+                      <p className="text-[11px] text-muted-foreground">Bez ďalších tipérov</p>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             ))}
@@ -1214,6 +1256,11 @@ export default async function RankingPage() {
                   <div key={`old-perf-${row.monthKey}`} className="rounded-lg border border-border/60 bg-muted/20 p-2.5 text-xs">
                     <p className="font-medium text-card-foreground">{row.monthLabel}</p>
                     <p className="text-muted-foreground">{row.userName} • OK {row.okTips} • {formatYield(row.yield)}</p>
+                    {row.ranking.length > 1 ? (
+                      <p className="mt-1 truncate text-[11px] text-muted-foreground/80">
+                        Ďalej: {row.ranking.slice(1).map((item) => `#${item.rank} ${item.userName} ${formatYield(item.yield)}`).join(' • ')}
+                      </p>
+                    ) : null}
                   </div>
                 ))}
               </div>
