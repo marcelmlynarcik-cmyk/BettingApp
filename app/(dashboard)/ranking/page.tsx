@@ -1233,9 +1233,10 @@ export default async function RankingPage() {
                   <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Rebríček mesiaca</p>
                   <div className="space-y-1">
                     {row.ranking.slice(1).map((item) => (
-                      <div key={`${row.monthKey}-${item.rank}-${item.userName}`} className="grid grid-cols-[1.35rem_minmax(0,1fr)_auto] items-center gap-1.5 text-[11px]">
+                      <div key={`${row.monthKey}-${item.rank}-${item.userName}`} className="grid grid-cols-[1.35rem_minmax(0,1fr)_auto_auto] items-center gap-1.5 text-[11px]">
                         <span className="text-muted-foreground">#{item.rank}</span>
                         <span className="truncate font-medium text-card-foreground/80">{item.userName}</span>
+                        <span className="text-muted-foreground">OK {item.okTips}</span>
                         <span className={cn('font-semibold', item.yield >= 0 ? 'text-emerald-600/85' : 'text-rose-600/85')}>{formatYield(item.yield)}</span>
                       </div>
                     ))}
@@ -1258,7 +1259,7 @@ export default async function RankingPage() {
                     <p className="text-muted-foreground">{row.userName} • OK {row.okTips} • {formatYield(row.yield)}</p>
                     {row.ranking.length > 1 ? (
                       <p className="mt-1 truncate text-[11px] text-muted-foreground/80">
-                        Ďalej: {row.ranking.slice(1).map((item) => `#${item.rank} ${item.userName} ${formatYield(item.yield)}`).join(' • ')}
+                        Ďalej: {row.ranking.slice(1).map((item) => `#${item.rank} ${item.userName} OK ${item.okTips} ${formatYield(item.yield)}`).join(' • ')}
                       </p>
                     ) : null}
                   </div>
