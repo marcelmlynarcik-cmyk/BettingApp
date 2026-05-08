@@ -243,6 +243,7 @@ export async function ensurePushSubscriptionHealthy(options?: { force?: boolean 
   const isRecentlySynced =
     !force &&
     lastSync?.endpoint === subscription.endpoint &&
+    typeof lastSync.syncedAt === 'number' &&
     Date.now() - lastSync.syncedAt < SUBSCRIPTION_SYNC_MAX_AGE_MS
 
   if (isRecentlySynced) return true

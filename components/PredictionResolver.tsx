@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { notifyError, notifySuccess, triggerPushNotification } from '@/lib/notifications'
+import { notifyError, notifySuccess } from '@/lib/notifications'
 import { evaluateAndTriggerStatsAlerts } from '@/lib/stats-alerts'
 import { PredictionRow } from './PredictionRow'
 import { CheckCheck } from 'lucide-react'
@@ -79,14 +79,6 @@ export function PredictionResolver({ initialPredictions, ticket }: PredictionRes
           }
         }
 
-        if (allOK) {
-          await triggerPushNotification({
-            title: 'Výherný tiket',
-            body: `${ticket.description || 'Tiket'} • výhra ${payout.toFixed(0)} Kč • čistý zisk ${totalProfit.toFixed(0)} Kč`,
-            url: `/tickets/${ticket.id}`,
-            tag: `ticket-win-${ticket.id}`,
-          })
-        }
       }
 
       const updatedPrediction = optimisticPredictions.find((p) => p.id === predictionId)
@@ -150,13 +142,6 @@ export function PredictionResolver({ initialPredictions, ticket }: PredictionRes
         amount: payout,
         date: new Date().toISOString().split('T')[0],
         description: `Výplata (Všetko OK): ${ticket.description || 'Tiket'} ${ticketTag}`,
-      })
-
-      await triggerPushNotification({
-        title: 'Výherný tiket',
-        body: `${ticket.description || 'Tiket'} • výhra ${payout.toFixed(0)} Kč • čistý zisk ${totalProfit.toFixed(0)} Kč`,
-        url: `/tickets/${ticket.id}`,
-        tag: `ticket-win-${ticket.id}`,
       })
 
       router.refresh()

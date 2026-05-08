@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { User, Sport, League } from '@/lib/types'
-import { notifyError, notifySuccess, triggerPushNotification } from '@/lib/notifications'
+import { notifyError, notifySuccess } from '@/lib/notifications'
 import { evaluateAndTriggerStatsAlerts } from '@/lib/stats-alerts'
 import {
   buildProbabilityIndex,
@@ -520,12 +520,6 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
           `${safeDescription} • vklad ${stakeNum.toFixed(0)} Kč • kurz ${singleCombinedOdds.toFixed(2)} • možná výhra ${singlePossibleWin.toFixed(0)} Kč`,
           detailUrl,
         )
-        await triggerPushNotification({
-          title: 'Podaný nový tiket',
-          body: `${safeDescription} • vklad ${stakeNum.toFixed(0)} Kč • kurz ${singleCombinedOdds.toFixed(2)} • možná výhra ${singlePossibleWin.toFixed(0)} Kč`,
-          url: detailUrl,
-          tag: result.ticket ? `ticket-submitted-${result.ticket.id}` : 'ticket-submitted',
-        })
       }
       if (result.ok) {
         await evaluateAndTriggerStatsAlerts(supabase, result.ticket ? `/tickets/${result.ticket.id}` : '/tickets')
@@ -590,12 +584,6 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
         `${successCount} z ${multiTickets.length} • celkový vklad ${multiTotalStake.toFixed(0)} Kč • možná výhra ${totalPossibleWin.toFixed(0)} Kč`,
         '/tickets',
       )
-      await triggerPushNotification({
-        title: 'Tikety boli podané',
-        body: `Podaných ${successCount} tiketov • vklady ${multiTotalStake.toFixed(0)} Kč • možná výhra ${totalPossibleWin.toFixed(0)} Kč`,
-        url: '/tickets',
-        tag: 'ticket-submitted-batch',
-      })
     }
 
     await evaluateAndTriggerStatsAlerts(supabase, '/tickets')

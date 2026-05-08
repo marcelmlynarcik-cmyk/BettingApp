@@ -12,6 +12,14 @@ type SendBody = {
 
 export async function POST(request: Request) {
   try {
+    const secret = process.env.NOTIFICATION_SYNC_SECRET || process.env.CRON_SECRET
+    const auth = request.headers.get('authorization')
+    const headerSecret = request.headers.get('x-notification-sync-secret')
+
+    if (!secret || (auth !== `Bearer ${secret}` && headerSecret !== secret)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const body = (await request.json()) as SendBody
     if (!body.title) {
       return NextResponse.json({ error: 'Missing title' }, { status: 400 })

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { notifyError, notifySuccess, triggerPushNotification } from '@/lib/notifications'
+import { notifyError, notifySuccess } from '@/lib/notifications'
 import { evaluateAndTriggerStatsAlerts } from '@/lib/stats-alerts'
 import { Edit2, Loader2, Trash2, X } from 'lucide-react'
 import type { League, Prediction, Sport, Ticket, User } from '@/lib/types'
@@ -279,15 +279,6 @@ export function TicketActions({ ticketId, description }: TicketActionsProps) {
         `${ticketForm.description || 'Bez popisu'} • vklad ${stake.toFixed(0)} Kč • kurz ${combinedOdds.toFixed(2)}`,
         detailUrl,
       )
-
-      if (originalTicketStatus !== 'win' && status === 'win') {
-        await triggerPushNotification({
-          title: 'Výherný tiket',
-          body: `${ticketForm.description || 'Tiket'} • výhra ${payout.toFixed(0)} Kč • čistý zisk ${(payout - stake).toFixed(0)} Kč`,
-          url: detailUrl,
-          tag: `ticket-win-${ticketId}`,
-        })
-      }
 
       await evaluateAndTriggerStatsAlerts(supabase, detailUrl)
       setIsEditOpen(false)

@@ -1,0 +1,11 @@
+-- Supabase setup required for real-time push delivery:
+-- 1. Deploy the app so this URL exists:
+--    https://YOUR_APP_DOMAIN/api/notifications/webhook
+-- 2. In Supabase Dashboard > Database > Webhooks, create webhooks for:
+--    - table: tickets, events: INSERT and UPDATE
+--    - table: predictions, event: UPDATE
+-- 3. Add one auth header to each webhook:
+--    x-webhook-secret: the same value as NOTIFICATION_SYNC_SECRET in the app env
+--
+-- The webhook calls the server immediately after the database event. The server
+-- deduplicates events in push_notification_events, so repeated calls are safe.
