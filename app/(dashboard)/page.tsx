@@ -12,7 +12,7 @@ import {
   Wallet,
   Zap,
 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { TicketCard } from '@/components/TicketCard'
 import type { OverviewStats, Ticket as TicketType } from '@/lib/types'
 import {
@@ -21,6 +21,8 @@ import {
   estimateTicketProbability,
   type ClosedPredictionRecord,
 } from '@/lib/ticket-probability'
+
+export const dynamic = 'force-dynamic'
 
 type FinanceTransactionRecord = {
   amount: number | string | null
@@ -191,7 +193,7 @@ function SmallTrend({
 }
 
 async function getDashboardData(): Promise<DashboardData> {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const now = new Date()
   const todayKey = toDateKey(now)
   const yesterday = new Date(now)

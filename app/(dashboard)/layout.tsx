@@ -1,7 +1,9 @@
 import { Sidebar } from '@/components/sidebar'
 import { PushNotificationBanner } from '@/components/push-notification-banner'
 import { RankingTicker } from '@/components/ranking-ticker'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+
+export const dynamic = 'force-dynamic'
 
 type UserRecord = { id: string; name: string }
 type TicketRecord = { id: string; stake: number | string | null }
@@ -52,7 +54,7 @@ async function fetchAllRows<T>(getPage: (from: number, to: number) => unknown) {
 
 async function getRankingTickerData(): Promise<RankingTickerItem[]> {
   try {
-    const supabase = await createClient()
+    const supabase = createAdminClient()
     const now = new Date()
     const firstDay = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
     const lastDayDate = new Date(now.getFullYear(), now.getMonth() + 1, 0)

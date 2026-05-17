@@ -1,5 +1,7 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { FinanceClient } from './client'
+
+export const dynamic = 'force-dynamic'
 
 type NormalizedFinanceType = 'deposit' | 'withdrawal' | 'bet' | 'win' | 'other'
 
@@ -29,7 +31,7 @@ function normalizedImpact(type: string, amount: number) {
 }
 
 async function getFinanceData() {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const [{ data: transactions }] = await Promise.all([
     supabase

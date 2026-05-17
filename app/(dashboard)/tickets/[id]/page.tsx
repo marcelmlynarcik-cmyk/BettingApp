@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { notFound } from 'next/navigation'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
@@ -22,8 +22,10 @@ import {
   type ClosedPredictionRecord,
 } from '@/lib/ticket-probability'
 
+export const dynamic = 'force-dynamic'
+
 async function getTicketData(id: string) {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const { data: ticket, error: ticketError } = await supabase
     .from('tickets')

@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { cn } from '@/lib/utils'
 import { StatisticsCharts } from './charts'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -13,6 +13,8 @@ import {
   TrendingUp,
   Wallet,
 } from 'lucide-react'
+
+export const dynamic = 'force-dynamic'
 
 type TicketRecord = {
   id: string
@@ -836,7 +838,7 @@ function computeQuickStats(tickets: TicketRecord[], weekdayPerformance: WeekdayP
 
 async function getStatistics(period: PeriodKey, minTips: number): Promise<StatisticsData> {
   try {
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
     const [tickets, predictions, users, financeTransactions] = await Promise.all([
       fetchAll<TicketRecord>(async (from, to) =>

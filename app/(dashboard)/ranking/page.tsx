@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { cn } from '@/lib/utils'
 import {
   ArrowRight,
@@ -10,6 +10,8 @@ import {
   Star,
   Trophy,
 } from 'lucide-react'
+
+export const dynamic = 'force-dynamic'
 
 type UserRecord = { id: string; name: string }
 type TicketRecord = {
@@ -324,7 +326,7 @@ async function fetchAllRows<T>(getPage: (from: number, to: number) => unknown) {
 }
 
 async function getRankingData() {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const [{ data: users }, tickets, predictions] = await Promise.all([
     supabase.from('users').select('id, name'),

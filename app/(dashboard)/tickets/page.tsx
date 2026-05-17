@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { TicketsPageClient } from './client'
 import type { Ticket as TicketType, Prediction, User, Sport, League } from '@/lib/types'
 import {
@@ -8,8 +8,10 @@ import {
   type ClosedPredictionRecord,
 } from '@/lib/ticket-probability'
 
+export const dynamic = 'force-dynamic'
+
 async function getTickets() {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   
   const [{ data: tickets }, { data: closedPredictions }] = await Promise.all([
     supabase
@@ -76,25 +78,25 @@ async function getTickets() {
 }
 
 async function getUsers() {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { data: users } = await supabase.from('users').select('*')
   return users || []
 }
 
 async function getSports() {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { data: sports } = await supabase.from('sports').select('*').order('name', { ascending: true })
   return sports || []
 }
 
 async function getLeagues() {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { data: leagues } = await supabase.from('leagues').select('*').order('name', { ascending: true })
   return leagues || []
 }
 
 async function getCurrentBankroll() {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const [{ data: allTickets }, { data: cashflow }] = await Promise.all([
     supabase.from('tickets').select('stake, payout'),
