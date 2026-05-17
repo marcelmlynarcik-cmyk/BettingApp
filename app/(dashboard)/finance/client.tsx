@@ -2,12 +2,10 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 import type { FinanceTransaction } from '@/lib/types'
 import { notifyError, notifySuccess } from '@/lib/notifications'
-import { evaluateAndTriggerStatsAlerts } from '@/lib/stats-alerts'
 import { Plus, ArrowUpCircle, ArrowDownCircle, X } from 'lucide-react'
 
 interface FinanceClientProps {
@@ -34,19 +32,27 @@ export function FinanceClient({ transactions }: FinanceClientProps) {
     e.preventDefault()
     setIsSubmitting(true)
 
-    const supabase = createClient()
-
     const finalAmount = type === 'withdraw' ? -Math.abs(parseFloat(amount)) : Math.abs(parseFloat(amount))
-
-    const { error } = await supabase.from('finance_transactions').insert({
-      type,
-      amount: finalAmount,
-      date,
-      description: description || null,
+    const response = await fetch('/api/finance-transactions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type,
+        amount: Math.abs(parseFloat(amount)),
+        date,
+        description: description || null,
+      }),
     })
 
-    if (error) {
-      console.error('Error creating transaction:', error)
+    if (!response.ok) {
+      let message = 'Transakciu sa nepodarilo pridať'
+      try {
+        const body = (await response.json()) as { error?: string }
+        if (body.error) message = body.error
+      } catch {
+        // Keep generic message.
+      }
+      console.error('Error creating transaction:', message)
       notifyError('Transakciu sa nepodarilo pridať')
       setIsSubmitting(false)
       return
@@ -57,7 +63,6 @@ export function FinanceClient({ transactions }: FinanceClientProps) {
       `${type === 'deposit' ? '+' : '-'}${Math.abs(finalAmount).toFixed(0)} Kč • ${date}${description ? ` • ${description}` : ''}`,
       '/finance',
     )
-    await evaluateAndTriggerStatsAlerts(supabase, '/finance')
 
     setIsSubmitting(false)
     setShowAddForm(false)

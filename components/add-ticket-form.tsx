@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { User, Sport, League } from '@/lib/types'
 import { notifyError, notifySuccess } from '@/lib/notifications'
-import { evaluateAndTriggerStatsAlerts } from '@/lib/stats-alerts'
 import {
   buildProbabilityIndex,
   estimatePredictionProbability,
@@ -521,9 +520,6 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
           detailUrl,
         )
       }
-      if (result.ok) {
-        await evaluateAndTriggerStatsAlerts(supabase, result.ticket ? `/tickets/${result.ticket.id}` : '/tickets')
-      }
 
       setIsSubmitting(false)
       router.refresh()
@@ -585,8 +581,6 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
         '/tickets',
       )
     }
-
-    await evaluateAndTriggerStatsAlerts(supabase, '/tickets')
 
     router.refresh()
     onClose()

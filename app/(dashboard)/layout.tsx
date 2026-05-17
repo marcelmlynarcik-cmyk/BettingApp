@@ -1,5 +1,4 @@
 import { Sidebar } from '@/components/sidebar'
-import { PushNotificationBanner } from '@/components/push-notification-banner'
 import { RankingTicker } from '@/components/ranking-ticker'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -158,7 +157,6 @@ export default async function DashboardLayout({
       <main className="min-h-screen pb-[64px] pt-14 md:ml-64 md:pb-0 md:pt-0">
         <RankingTicker items={rankingTickerItems} />
         <div className="p-4 md:p-6">
-          <PushNotificationBanner />
           {children}
         </div>
       </main>

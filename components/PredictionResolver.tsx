@@ -2,9 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { notifyError, notifySuccess } from '@/lib/notifications'
-import { evaluateAndTriggerStatsAlerts } from '@/lib/stats-alerts'
 import { PredictionRow } from './PredictionRow'
 import { CheckCheck } from 'lucide-react'
 import type { Prediction, User, Sport, League, Ticket } from '@/lib/types'
@@ -19,11 +17,29 @@ export function PredictionResolver({ initialPredictions, ticket }: PredictionRes
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [isProcessingAll, setIsProcessingAll] = useState(false)
   const [predictions, setPredictions] = useState(initialPredictions)
-  const supabase = createClient()
 
   useEffect(() => {
     setPredictions(initialPredictions)
   }, [initialPredictions])
+
+  const updateTicketPredictions = async (payload: Record<string, unknown>) => {
+    const response = await fetch(`/api/tickets/${ticket.id}/predictions`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+
+    if (!response.ok) {
+      let message = 'Aktualizácia tipu zlyhala'
+      try {
+        const body = (await response.json()) as { error?: string }
+        if (body.error) message = body.error
+      } catch {
+        // Keep generic message.
+      }
+      throw new Error(message)
+    }
+  }
 
   const handleUpdateStatus = async (predictionId: string, result: 'OK' | 'NOK') => {
     setUpdatingId(predictionId)
@@ -34,52 +50,10 @@ export function PredictionResolver({ initialPredictions, ticket }: PredictionRes
     setPredictions(optimisticPredictions)
 
     try {
-      const { error: updateError } = await supabase
-        .from('predictions')
-        .update({ result })
-        .eq('id', predictionId)
-
-      if (updateError) throw updateError
+      await updateTicketPredictions({ predictionId, result })
 
       const allResolved = optimisticPredictions.every((p) => p.result !== 'Pending')
       const allOK = optimisticPredictions.every((p) => p.result === 'OK')
-      const resolvedPredictions = optimisticPredictions as Prediction[]
-
-      if (allResolved) {
-        const newStatus = allOK ? 'win' : 'loss'
-        const payout = allOK ? Number(ticket.stake) * Number(ticket.combined_odds) : 0
-        const totalProfit = payout - Number(ticket.stake)
-
-        await supabase
-          .from('tickets')
-          .update({ status: newStatus, payout })
-          .eq('id', ticket.id)
-
-        if (allOK) {
-          const profitPerPred = totalProfit / resolvedPredictions.length
-          for (const p of resolvedPredictions) {
-            await supabase.from('predictions').update({ profit: profitPerPred }).eq('id', p.id)
-          }
-
-          const ticketTag = `[ticket:${ticket.id}]`
-          await supabase.from('finance_transactions').insert({
-            type: 'payout',
-            ticket_id: ticket.id,
-            amount: payout,
-            date: new Date().toISOString().split('T')[0],
-            description: `Výplata za tiket: ${ticket.description || 'Tiket'} ${ticketTag}`,
-          })
-        } else {
-          const nokPredictions = resolvedPredictions.filter((p) => p.result === 'NOK')
-          const lossPerNok = -Number(ticket.stake) / nokPredictions.length
-
-          for (const p of resolvedPredictions) {
-            const profit = p.result === 'NOK' ? lossPerNok : 0
-            await supabase.from('predictions').update({ profit }).eq('id', p.id)
-          }
-        }
-
-      }
 
       const updatedPrediction = optimisticPredictions.find((p) => p.id === predictionId)
       const userName = updatedPrediction?.user?.name || 'Tipér'
@@ -94,7 +68,6 @@ export function PredictionResolver({ initialPredictions, ticket }: PredictionRes
         `${userName} • ${sportName}/${leagueName} • kurz ${oddsValue.toFixed(2)} • ${result} • ${ticketStateLabel}`,
         `/tickets/${ticket.id}`,
       )
-      await evaluateAndTriggerStatsAlerts(supabase, `/tickets/${ticket.id}`)
     } catch (error) {
       console.error('Chyba pri aktualizácii statusu:', error)
       setPredictions(prevPredictions)
@@ -111,42 +84,10 @@ export function PredictionResolver({ initialPredictions, ticket }: PredictionRes
     const prevPredictions = predictions
     setPredictions((prev) => prev.map((p) => ({ ...p, result: 'OK' })))
     try {
-      // 1. Aktualizujeme všetky predikcie na OK
-      await supabase
-        .from('predictions')
-        .update({ result: 'OK' })
-        .eq('ticket_id', ticket.id)
-
-      // 2. Prepočítame výhru
-      const payout = Number(ticket.stake) * Number(ticket.combined_odds)
-      const totalProfit = payout - Number(ticket.stake)
-      const profitPerPred = totalProfit / initialPredictions.length
-
-      // 3. Aktualizujeme tiket na win
-      await supabase
-        .from('tickets')
-        .update({ status: 'win', payout })
-        .eq('id', ticket.id)
-
-      // 4. Rozdelíme profit medzi predikcie
-      await supabase
-        .from('predictions')
-        .update({ profit: profitPerPred })
-        .eq('ticket_id', ticket.id)
-
-      // 5. Pridáme záznam do financií
-      const ticketTag = `[ticket:${ticket.id}]`
-      await supabase.from('finance_transactions').insert({
-        type: 'payout',
-        ticket_id: ticket.id,
-        amount: payout,
-        date: new Date().toISOString().split('T')[0],
-        description: `Výplata (Všetko OK): ${ticket.description || 'Tiket'} ${ticketTag}`,
-      })
+      await updateTicketPredictions({ action: 'markAllOK' })
 
       router.refresh()
       notifySuccess('Tiket označený ako výherný', ticket.description || 'Všetko OK', `/tickets/${ticket.id}`)
-      await evaluateAndTriggerStatsAlerts(supabase, `/tickets/${ticket.id}`)
     } catch (error) {
       console.error('Chyba pri hromadnom vyhodnotení:', error)
       setPredictions(prevPredictions)
@@ -163,30 +104,11 @@ export function PredictionResolver({ initialPredictions, ticket }: PredictionRes
       prev.map((p) => (p.id === predictionId ? { ...p, odds: newOdds } : p))
     )
     try {
-      const { error: updateError } = await supabase
-        .from('predictions')
-        .update({ odds: newOdds })
-        .eq('id', predictionId)
-
-      if (updateError) throw updateError
-
-      const { data: allPredictions } = await supabase
-        .from('predictions')
-        .select('odds')
-        .eq('ticket_id', ticket.id)
-
-      if (allPredictions && allPredictions.length === 3) {
-        const newCombinedOdds = allPredictions.reduce((acc, p) => acc * Number(p.odds), 1)
-        const newPossibleWin = Number(ticket.stake) * newCombinedOdds
-
-        await supabase
-          .from('tickets')
-          .update({ 
-            combined_odds: newCombinedOdds,
-            possible_win: newPossibleWin
-          })
-          .eq('id', ticket.id)
-      }
+      await updateTicketPredictions({
+        action: 'updateOdds',
+        predictionId,
+        odds: newOdds,
+      })
 
       router.refresh()
       notifySuccess('Kurz bol upravený')

@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
-import { PwaRegister } from '@/components/pwa-register'
 import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
 
@@ -38,7 +37,6 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className="font-sans antialiased">
-        <PwaRegister />
         {children}
         <Toaster richColors position="top-right" />
         <Analytics />
