@@ -30,6 +30,11 @@ type StatsBucket = {
 
 const PRIOR_WEIGHT = 12
 
+function fallbackProbabilityFromOdds(odds: number) {
+  const implied = 1 / odds
+  return Math.max(0.02, Math.min(0.98, implied))
+}
+
 export function getOddsBucket(odds: number) {
   if (odds <= 1.5) return '1.01-1.50'
   if (odds <= 1.8) return '1.51-1.80'
@@ -87,7 +92,13 @@ export function estimatePredictionProbability(
 
   const bucket = getOddsBucket(odds)
   const global = statsMap.get('global|b:any')
-  if (!global || global.total === 0) return null
+  if (!global || global.total === 0) {
+    return {
+      probability: fallbackProbabilityFromOdds(odds),
+      sampleSize: 0,
+      sourceLabel: 'podľa kurzu',
+    }
+  }
   const globalRate = global.wins / global.total
 
   const candidateKeys = [
