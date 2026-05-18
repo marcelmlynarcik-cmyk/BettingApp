@@ -420,73 +420,41 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
   )
 
   const createOneTicket = async (
-    supabase: ReturnType<typeof createClient>,
     ticketPredictions: NormalizedPrediction[],
     ticketStake: number,
     customDescription: string | null,
     url: string | null,
   ) => {
-    const combinedOdds = calculateCombinedOdds(ticketPredictions)
-    const possibleWin = ticketStake * combinedOdds
-
-    const { data: ticket, error: ticketError } = await supabase
-      .from('tickets')
-      .insert({
+    const response = await fetch('/api/tickets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         date,
         stake: ticketStake,
-        combined_odds: combinedOdds,
-        possible_win: possibleWin,
-        ticket_url: url,
         description: customDescription,
-        status: 'pending',
-      })
-      .select()
-      .single()
-
-    if (ticketError || !ticket) {
-      console.error('Error creating ticket:', ticketError)
-      return { ok: false as const, financeWarning: false as const, ticket: null }
-    }
-
-    const predictionsToInsert = ticketPredictions.map((prediction) => ({
-      ticket_id: ticket.id,
-      user_id: prediction.user_id,
-      odds: prediction.odds,
-      sport_id: prediction.sport_id,
-      league_id: prediction.league_id,
-      tip_date: date,
-      result: 'Pending',
-    }))
-
-    const { error: predictionsError } = await supabase.from('predictions').insert(predictionsToInsert)
-
-    if (predictionsError) {
-      console.error('Error creating predictions:', predictionsError)
-      return { ok: false as const, financeWarning: false as const, ticket: null }
-    }
-
-    const ticketTag = `[ticket:${ticket.id}]`
-    const { error: transactionError } = await supabase.from('finance_transactions').insert({
-      type: 'bet',
-      ticket_id: ticket.id,
-      amount: -ticketStake,
-      date,
-      description: `Stávka na tiket: ${customDescription || 'Nový tiket'} ${ticketTag}`,
+        ticket_url: url,
+        predictions: ticketPredictions,
+      }),
     })
 
-    if (transactionError) {
-      console.error('Error creating finance transaction:', transactionError)
-      return { ok: true as const, financeWarning: true as const, ticket }
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null)
+      console.error('Error creating ticket:', payload?.error || response.statusText)
+      return { ok: false as const, financeWarning: false as const, ticket: null }
     }
 
-    return { ok: true as const, financeWarning: false as const, ticket }
+    const payload = await response.json()
+    return {
+      ok: true as const,
+      financeWarning: Boolean(payload.financeWarning),
+      ticket: payload.ticket || null,
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     setIsSubmitting(true)
-    const supabase = createClient()
 
     if (mode === 'single') {
       const stakeNum = Math.floor(Number.parseFloat(stake))
@@ -505,7 +473,7 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
 
       const ticketDescription = description.trim() ? description.trim() : null
       const ticketUrlValue = ticketUrl.trim() ? ticketUrl.trim() : null
-      const result = await createOneTicket(supabase, singleNormalized, stakeNum, ticketDescription, ticketUrlValue)
+      const result = await createOneTicket(singleNormalized, stakeNum, ticketDescription, ticketUrlValue)
 
       if (!result.ok) {
         notifyError('Tiket sa nepodarilo vytvoriť')
@@ -551,7 +519,6 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
       const ticketUrlValue = multiTicketUrls[index]?.trim() ? multiTicketUrls[index].trim() : null
 
       const result = await createOneTicket(
-        supabase,
         ticket.predictions,
         multiTicketStakes[index] ?? 0,
         autoDescription,
