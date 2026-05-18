@@ -19,6 +19,14 @@ type EditablePrediction = Pick<
 
 type EditableTicket = Pick<Ticket, 'date' | 'stake' | 'description' | 'ticket_url'>
 
+type TicketEditPayload = {
+  ticket: EditableTicket & Pick<Ticket, 'status'>
+  predictions: EditablePrediction[]
+  users: User[]
+  sports: Sport[]
+  leagues: League[]
+}
+
 export function TicketActions({ ticketId, description }: TicketActionsProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
@@ -89,34 +97,15 @@ export function TicketActions({ ticketId, description }: TicketActionsProps) {
     setIsLoadingEditData(true)
 
     try {
-      const [
-        { data: ticket, error: ticketError },
-        { data: predictions, error: predictionsError },
-        { data: usersData, error: usersError },
-        { data: sportsData, error: sportsError },
-        { data: leaguesData, error: leaguesError },
-      ] = await Promise.all([
-        supabase
-          .from('tickets')
-          .select('date, stake, description, ticket_url, status')
-          .eq('id', ticketId)
-          .single(),
-        supabase
-          .from('predictions')
-          .select('id, user_id, odds, result, sport_id, league_id, tip_date')
-          .eq('ticket_id', ticketId)
-          .order('created_at', { ascending: true }),
-        supabase.from('users').select('*').order('name', { ascending: true }),
-        supabase.from('sports').select('*').order('name', { ascending: true }),
-        supabase.from('leagues').select('*').order('name', { ascending: true }),
-      ])
+      const response = await fetch(`/api/tickets/${ticketId}`)
+      const payload = (await response.json().catch(() => null)) as TicketEditPayload | { error?: string } | null
 
-      if (ticketError) throw ticketError
-      if (predictionsError) throw predictionsError
-      if (usersError) throw usersError
-      if (sportsError) throw sportsError
-      if (leaguesError) throw leaguesError
+      if (!response.ok) {
+        const errorMessage = payload && 'error' in payload ? payload.error : null
+        throw new Error(errorMessage || 'Ticket edit data load failed')
+      }
 
+      const { ticket, predictions, users: usersData, sports: sportsData, leagues: leaguesData } = payload as TicketEditPayload
       if (!ticket) throw new Error('Ticket not found')
 
       setTicketForm({
@@ -176,101 +165,20 @@ export function TicketActions({ ticketId, description }: TicketActionsProps) {
 
     try {
       const combinedOdds = predictionForms.reduce((acc, prediction) => acc * Number(prediction.odds), 1)
-      const possibleWin = stake * combinedOdds
-      const { status, payout, profitsByPredictionId } = computeSettlement(predictionForms, stake, combinedOdds)
-
-      const { error: updateTicketError } = await supabase
-        .from('tickets')
-        .update({
+      const response = await fetch(`/api/tickets/${ticketId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           date: ticketForm.date,
           stake,
-          combined_odds: combinedOdds,
-          possible_win: possibleWin,
-          payout,
-          status,
           description: ticketForm.description || null,
           ticket_url: ticketForm.ticket_url || null,
-        })
-        .eq('id', ticketId)
+          predictions: predictionForms,
+        }),
+      })
+      const payload = await response.json().catch(() => null)
 
-      if (updateTicketError) throw updateTicketError
-
-      for (const prediction of predictionForms) {
-        const { error: updatePredictionError } = await supabase
-          .from('predictions')
-          .update({
-            user_id: prediction.user_id,
-            odds: Number(prediction.odds),
-            result: prediction.result,
-            sport_id: prediction.sport_id || null,
-            league_id: prediction.league_id || null,
-            tip_date: prediction.tip_date || null,
-            profit: profitsByPredictionId[prediction.id] ?? 0,
-          })
-          .eq('id', prediction.id)
-
-        if (updatePredictionError) throw updatePredictionError
-      }
-
-      const ticketTag = `[ticket:${ticketId}]`
-      const ticketDescription = ticketForm.description || 'Nový tiket'
-      const payoutDescription = ticketForm.description || 'Tiket'
-
-      const { data: betTransactions, error: betTransactionsError } = await supabase
-        .from('finance_transactions')
-        .select('id')
-        .eq('ticket_id', ticketId)
-        .eq('type', 'bet')
-
-      if (betTransactionsError) throw betTransactionsError
-
-      if ((betTransactions || []).length > 0) {
-        const { error: updateBetError } = await supabase
-          .from('finance_transactions')
-          .update({
-            amount: -Math.abs(stake),
-            date: ticketForm.date,
-            description: `Stávka na tiket: ${ticketDescription} ${ticketTag}`,
-          })
-          .eq('ticket_id', ticketId)
-          .eq('type', 'bet')
-
-        if (updateBetError) throw updateBetError
-      } else {
-        const { error: insertBetError } = await supabase
-          .from('finance_transactions')
-          .insert({
-            type: 'bet',
-            ticket_id: ticketId,
-            amount: -Math.abs(stake),
-            date: ticketForm.date,
-            description: `Stávka na tiket: ${ticketDescription} ${ticketTag}`,
-          })
-
-        if (insertBetError) throw insertBetError
-      }
-
-      const { error: deletePayoutsError } = await supabase
-        .from('finance_transactions')
-        .delete()
-        .eq('ticket_id', ticketId)
-        .eq('type', 'payout')
-
-      if (deletePayoutsError) throw deletePayoutsError
-
-      if (status === 'win' && payout > 0) {
-        const { error: insertPayoutError } = await supabase
-          .from('finance_transactions')
-          .insert({
-            type: 'payout',
-            ticket_id: ticketId,
-            amount: payout,
-            date: ticketForm.date,
-            description: `Výplata za tiket: ${payoutDescription} ${ticketTag}`,
-          })
-
-        if (insertPayoutError) throw insertPayoutError
-      }
+      if (!response.ok) throw new Error(payload?.error || 'Ticket update failed')
 
       const detailUrl = `/tickets/${ticketId}`
       notifySuccess(
