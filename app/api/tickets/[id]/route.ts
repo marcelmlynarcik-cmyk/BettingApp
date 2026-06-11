@@ -29,7 +29,7 @@ function toRequiredString(value: unknown) {
   return typeof value === 'string' && value.trim() ? value.trim() : null
 }
 
-function toResult(value: unknown) {
+function toResult(value: unknown): 'OK' | 'NOK' | 'Pending' | null {
   return value === 'OK' || value === 'NOK' || value === 'Pending' ? value : null
 }
 

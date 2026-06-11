@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     const stake = toPositiveNumber(body.stake)
     const description = toOptionalString(body.description)
     const ticketUrl = toOptionalString(body.ticket_url)
-    const predictions = Array.isArray(body.predictions) ? body.predictions : []
+    const predictions = Array.isArray(body.predictions) ? (body.predictions as TicketPredictionInput[]) : []
 
     if (!date || stake === null || predictions.length === 0) {
       return NextResponse.json({ error: 'Invalid ticket' }, { status: 400 })

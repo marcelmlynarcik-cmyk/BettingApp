@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import type { League, Sport } from '@/lib/types'
 import { notifyError, notifySuccess } from '@/lib/notifications'
 import { Pencil, Settings2, Trash2, X } from 'lucide-react'
@@ -15,6 +14,14 @@ interface SportsLeaguesManagerProps {
 
 function sortByName<T extends { name: string }>(items: T[]) {
   return [...items].sort((a, b) => a.name.localeCompare(b.name, 'sk', { sensitivity: 'base' }))
+}
+
+async function parseApiResponse(response: Response) {
+  const payload = await response.json().catch(() => null)
+  if (!response.ok) {
+    throw new Error(payload?.error || response.statusText)
+  }
+  return payload
 }
 
 export function SportsLeaguesManager({ sports: initialSports, leagues: initialLeagues }: SportsLeaguesManagerProps) {
@@ -46,24 +53,25 @@ export function SportsLeaguesManager({ sports: initialSports, leagues: initialLe
     if (!name) return
 
     setIsSaving(true)
-    const supabase = createClient()
-    const { data, error } = await supabase
-      .from('sports')
-      .insert({ name })
-      .select('*')
-      .single()
+    try {
+      const payload = await parseApiResponse(await fetch('/api/sports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      }))
+      const sport = payload.sport as Sport
 
-    setIsSaving(false)
-    if (error || !data) {
-      notifyError('Šport sa nepodarilo pridať')
-      return
+      setSports((prev) => [...prev, sport])
+      setNewLeagueSportId((prev) => prev || sport.id)
+      setNewSportName('')
+      notifySuccess('Šport pridaný', name)
+      refreshData()
+    } catch (error) {
+      console.error('Sport create failed:', error)
+      notifyError('Šport sa nepodarilo pridať', error instanceof Error ? error.message : undefined)
+    } finally {
+      setIsSaving(false)
     }
-
-    setSports((prev) => [...prev, data as Sport])
-    setNewLeagueSportId((prev) => prev || data.id)
-    setNewSportName('')
-    notifySuccess('Šport pridaný', name)
-    refreshData()
   }
 
   const handleUpdateSport = async () => {
@@ -72,22 +80,23 @@ export function SportsLeaguesManager({ sports: initialSports, leagues: initialLe
     if (!name) return
 
     setIsSaving(true)
-    const supabase = createClient()
-    const { error } = await supabase
-      .from('sports')
-      .update({ name })
-      .eq('id', editingSport.id)
+    try {
+      await parseApiResponse(await fetch(`/api/sports/${editingSport.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      }))
 
-    setIsSaving(false)
-    if (error) {
-      notifyError('Šport sa nepodarilo upraviť')
-      return
+      setSports((prev) => prev.map((sport) => (sport.id === editingSport.id ? { ...sport, name } : sport)))
+      setEditingSport(null)
+      notifySuccess('Šport upravený', name)
+      refreshData()
+    } catch (error) {
+      console.error('Sport update failed:', error)
+      notifyError('Šport sa nepodarilo upraviť', error instanceof Error ? error.message : undefined)
+    } finally {
+      setIsSaving(false)
     }
-
-    setSports((prev) => prev.map((sport) => (sport.id === editingSport.id ? { ...sport, name } : sport)))
-    setEditingSport(null)
-    notifySuccess('Šport upravený', name)
-    refreshData()
   }
 
   const handleDeleteSport = async (sport: Sport) => {
@@ -98,18 +107,18 @@ export function SportsLeaguesManager({ sports: initialSports, leagues: initialLe
     }
 
     setIsSaving(true)
-    const supabase = createClient()
-    const { error } = await supabase.from('sports').delete().eq('id', sport.id)
-    setIsSaving(false)
+    try {
+      await parseApiResponse(await fetch(`/api/sports/${sport.id}`, { method: 'DELETE' }))
 
-    if (error) {
-      notifyError('Šport sa nepodarilo zmazať')
-      return
+      setSports((prev) => prev.filter((item) => item.id !== sport.id))
+      notifySuccess('Šport zmazaný', sport.name)
+      refreshData()
+    } catch (error) {
+      console.error('Sport delete failed:', error)
+      notifyError('Šport sa nepodarilo zmazať', error instanceof Error ? error.message : undefined)
+    } finally {
+      setIsSaving(false)
     }
-
-    setSports((prev) => prev.filter((item) => item.id !== sport.id))
-    notifySuccess('Šport zmazaný', sport.name)
-    refreshData()
   }
 
   const handleCreateLeague = async () => {
@@ -117,23 +126,23 @@ export function SportsLeaguesManager({ sports: initialSports, leagues: initialLe
     if (!name || !newLeagueSportId) return
 
     setIsSaving(true)
-    const supabase = createClient()
-    const { data, error } = await supabase
-      .from('leagues')
-      .insert({ name, sport_id: newLeagueSportId })
-      .select('*')
-      .single()
+    try {
+      const payload = await parseApiResponse(await fetch('/api/leagues', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, sport_id: newLeagueSportId }),
+      }))
 
-    setIsSaving(false)
-    if (error || !data) {
-      notifyError('Liga sa nepodarilo pridať')
-      return
+      setLeagues((prev) => [...prev, payload.league as League])
+      setNewLeagueName('')
+      notifySuccess('Liga pridaná', name)
+      refreshData()
+    } catch (error) {
+      console.error('League create failed:', error)
+      notifyError('Liga sa nepodarilo pridať', error instanceof Error ? error.message : undefined)
+    } finally {
+      setIsSaving(false)
     }
-
-    setLeagues((prev) => [...prev, data as League])
-    setNewLeagueName('')
-    notifySuccess('Liga pridaná', name)
-    refreshData()
   }
 
   const handleUpdateLeague = async () => {
@@ -142,42 +151,43 @@ export function SportsLeaguesManager({ sports: initialSports, leagues: initialLe
     if (!name || !editingLeague.sport_id) return
 
     setIsSaving(true)
-    const supabase = createClient()
-    const { error } = await supabase
-      .from('leagues')
-      .update({ name, sport_id: editingLeague.sport_id })
-      .eq('id', editingLeague.id)
-    setIsSaving(false)
+    try {
+      await parseApiResponse(await fetch(`/api/leagues/${editingLeague.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, sport_id: editingLeague.sport_id }),
+      }))
 
-    if (error) {
-      notifyError('Liga sa nepodarilo upraviť')
-      return
+      setLeagues((prev) =>
+        prev.map((league) =>
+          league.id === editingLeague.id ? { ...league, name, sport_id: editingLeague.sport_id } : league,
+        ),
+      )
+      setEditingLeague(null)
+      notifySuccess('Liga upravená', name)
+      refreshData()
+    } catch (error) {
+      console.error('League update failed:', error)
+      notifyError('Liga sa nepodarilo upraviť', error instanceof Error ? error.message : undefined)
+    } finally {
+      setIsSaving(false)
     }
-
-    setLeagues((prev) =>
-      prev.map((league) =>
-        league.id === editingLeague.id ? { ...league, name, sport_id: editingLeague.sport_id } : league,
-      ),
-    )
-    setEditingLeague(null)
-    notifySuccess('Liga upravená', name)
-    refreshData()
   }
 
   const handleDeleteLeague = async (league: League) => {
     setIsSaving(true)
-    const supabase = createClient()
-    const { error } = await supabase.from('leagues').delete().eq('id', league.id)
-    setIsSaving(false)
+    try {
+      await parseApiResponse(await fetch(`/api/leagues/${league.id}`, { method: 'DELETE' }))
 
-    if (error) {
-      notifyError('Liga sa nepodarilo zmazať')
-      return
+      setLeagues((prev) => prev.filter((item) => item.id !== league.id))
+      notifySuccess('Liga zmazaná', league.name)
+      refreshData()
+    } catch (error) {
+      console.error('League delete failed:', error)
+      notifyError('Liga sa nepodarilo zmazať', error instanceof Error ? error.message : undefined)
+    } finally {
+      setIsSaving(false)
     }
-
-    setLeagues((prev) => prev.filter((item) => item.id !== league.id))
-    notifySuccess('Liga zmazaná', league.name)
-    refreshData()
   }
 
   const getSportName = (sportId: string) => sports.find((sport) => sport.id === sportId)?.name || 'Bez športu'

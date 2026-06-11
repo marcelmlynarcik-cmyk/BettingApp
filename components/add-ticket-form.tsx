@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import type { User, Sport, League } from '@/lib/types'
 import { notifyError, notifySuccess } from '@/lib/notifications'
 import {
@@ -301,32 +300,34 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
     let isActive = true
 
     const loadHistoricalPredictions = async () => {
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from('predictions')
-        .select('user_id, sport_id, league_id, odds, result')
-        .in('result', ['OK', 'NOK'])
+      try {
+        const response = await fetch('/api/predictions/history')
+        const payload = await response.json().catch(() => null)
 
-      if (!isActive) return
+        if (!isActive) return
 
-      if (error) {
+        if (!response.ok) {
+          throw new Error(payload?.error || 'Prediction history load failed')
+        }
+
+        const safeRows = (payload?.predictions || [])
+          .map((row: Partial<ClosedPredictionRecord>) => ({
+            user_id: String(row.user_id || ''),
+            sport_id: row.sport_id ? String(row.sport_id) : null,
+            league_id: row.league_id ? String(row.league_id) : null,
+            odds: Number(row.odds || 0),
+            result: row.result as 'OK' | 'NOK',
+          }))
+          .filter((row: ClosedPredictionRecord) => row.user_id && row.odds > 0)
+
+        setHistoricalPredictions(safeRows)
+      } catch (error) {
+        if (!isActive) return
         console.error('Error fetching historical predictions:', error)
+      } finally {
+        if (!isActive) return
         setStatsLoaded(true)
-        return
       }
-
-      const safeRows = (data || [])
-        .map((row) => ({
-          user_id: String(row.user_id || ''),
-          sport_id: row.sport_id ? String(row.sport_id) : null,
-          league_id: row.league_id ? String(row.league_id) : null,
-          odds: Number(row.odds || 0),
-          result: row.result as 'OK' | 'NOK',
-        }))
-        .filter((row) => row.user_id && row.odds > 0)
-
-      setHistoricalPredictions(safeRows)
-      setStatsLoaded(true)
     }
 
     loadHistoricalPredictions()
