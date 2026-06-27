@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendPushToAllUsersSafe } from '@/lib/push-notifications'
 
 function toNumber(value: unknown) {
   const parsed = Number(value)
@@ -22,14 +23,31 @@ export async function POST(request: Request) {
 
     const finalAmount = type === 'withdraw' ? -Math.abs(amount) : Math.abs(amount)
     const supabase = createAdminClient()
-    const { error } = await supabase.from('finance_transactions').insert({
+    const { data: transaction, error } = await supabase
+      .from('finance_transactions')
+      .insert({
       type,
       amount: finalAmount,
       date,
       description,
     })
+      .select('id')
+      .single()
 
     if (error) throw error
+
+    if (transaction) {
+      await sendPushToAllUsersSafe({
+        type: 'finance_updates',
+        dedupeKey: transaction.id,
+        payload: {
+          title: type === 'deposit' ? 'Nový vklad' : 'Nový výber',
+          body: `${Math.abs(finalAmount).toFixed(2)} EUR${description ? ` | ${description}` : ''}`,
+          url: '/finance',
+          tag: `finance:${transaction.id}`,
+        },
+      })
+    }
 
     return NextResponse.json({ ok: true, amount: finalAmount })
   } catch (error) {

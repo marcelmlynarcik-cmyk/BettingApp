@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendPushToAllUsersSafe } from '@/lib/push-notifications'
 
 type RouteContext = {
   params: Promise<{ id: string }>
@@ -10,6 +11,7 @@ type PredictionRow = {
   ticket_id: string
   result: 'OK' | 'NOK' | 'Pending'
   odds: number | string
+  user_id?: string
 }
 
 type TicketRow = {
@@ -18,6 +20,7 @@ type TicketRow = {
   combined_odds: number | string | null
   description: string | null
   date: string
+  status?: 'win' | 'loss' | 'pending'
 }
 
 function toNumber(value: unknown) {
@@ -71,7 +74,7 @@ async function finalizeTicketIfResolved(
   predictions: PredictionRow[],
 ) {
   const allResolved = predictions.length > 0 && predictions.every((prediction) => isResolved(prediction.result))
-  if (!allResolved) return
+  if (!allResolved) return { resolved: false as const }
 
   const allOK = predictions.every((prediction) => prediction.result === 'OK')
   const stake = toNumber(ticket.stake)
@@ -101,7 +104,7 @@ async function finalizeTicketIfResolved(
       payout,
       `Výplata za tiket: ${ticket.description || 'Tiket'} [ticket:${ticket.id}]`,
     )
-    return
+    return { resolved: true as const, status: 'win' as const, payout }
   }
 
   await clearPayoutTransaction(supabase, ticket.id)
@@ -117,6 +120,8 @@ async function finalizeTicketIfResolved(
 
     if (error) throw error
   }
+
+  return { resolved: true as const, status: 'loss' as const, payout }
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
@@ -127,7 +132,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const { data: ticket, error: ticketError } = await supabase
       .from('tickets')
-      .select('id, stake, combined_odds, description, date')
+      .select('id, stake, combined_odds, description, date, status')
       .eq('id', ticketId)
       .single()
 
@@ -177,7 +182,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (body.action === 'markAllOK') {
       const { data: predictionsBefore, error: readError } = await supabase
         .from('predictions')
-        .select('id, ticket_id, result, odds')
+        .select('id, ticket_id, result, odds, user_id')
         .eq('ticket_id', ticketId)
 
       if (readError) throw readError
@@ -194,7 +199,37 @@ export async function PATCH(request: Request, context: RouteContext) {
 
       if (updateError) throw updateError
 
-      await finalizeTicketIfResolved(supabase, ticket as TicketRow, predictions)
+      const settlement = await finalizeTicketIfResolved(supabase, ticket as TicketRow, predictions)
+
+      for (const prediction of predictionsBefore || []) {
+        if (prediction.result === 'OK') continue
+        await sendPushToAllUsersSafe({
+          type: 'prediction_result_changed',
+          dedupeKey: `${ticketId}:${prediction.id}:OK`,
+          payload: {
+            title: 'Tip bol úspešný',
+            body: `${ticket.description || 'Tiket'} | kurz ${toNumber(prediction.odds).toFixed(2)}`,
+            url: `/tickets/${ticketId}`,
+            tag: `prediction:${prediction.id}:OK`,
+          },
+        })
+      }
+
+      if (settlement.resolved && ticket.status !== settlement.status) {
+        await sendPushToAllUsersSafe({
+          type: 'ticket_settled',
+          dedupeKey: `${ticketId}:${settlement.status}`,
+          payload: {
+            title: settlement.status === 'win' ? 'Tiket je výherný' : 'Tiket je prehratý',
+            body: settlement.status === 'win'
+              ? `${ticket.description || 'Tiket'} | výplata ${settlement.payout.toFixed(2)} EUR`
+              : `${ticket.description || 'Tiket'} | vklad ${toNumber(ticket.stake).toFixed(2)} EUR`,
+            url: `/tickets/${ticketId}`,
+            tag: `ticket-settled:${ticketId}:${settlement.status}`,
+          },
+        })
+      }
+
       return NextResponse.json({ ok: true })
     }
 
@@ -204,6 +239,15 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (!predictionId || !result) {
       return NextResponse.json({ error: 'Invalid prediction result update' }, { status: 400 })
     }
+
+    const { data: predictionBefore, error: predictionBeforeError } = await supabase
+      .from('predictions')
+      .select('id, result, odds')
+      .eq('id', predictionId)
+      .eq('ticket_id', ticketId)
+      .maybeSingle()
+
+    if (predictionBeforeError) throw predictionBeforeError
 
     const { error: updateError } = await supabase
       .from('predictions')
@@ -215,12 +259,40 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const { data: predictions, error: predictionsError } = await supabase
       .from('predictions')
-      .select('id, ticket_id, result, odds')
+      .select('id, ticket_id, result, odds, user_id')
       .eq('ticket_id', ticketId)
 
     if (predictionsError) throw predictionsError
 
-    await finalizeTicketIfResolved(supabase, ticket as TicketRow, (predictions || []) as PredictionRow[])
+    const settlement = await finalizeTicketIfResolved(supabase, ticket as TicketRow, (predictions || []) as PredictionRow[])
+
+    if (predictionBefore?.result !== result) {
+      await sendPushToAllUsersSafe({
+        type: 'prediction_result_changed',
+        dedupeKey: `${ticketId}:${predictionId}:${result}`,
+        payload: {
+          title: result === 'OK' ? 'Tip bol úspešný' : 'Tip bol neúspešný',
+          body: `${ticket.description || 'Tiket'} | kurz ${toNumber(predictionBefore?.odds).toFixed(2)}`,
+          url: `/tickets/${ticketId}`,
+          tag: `prediction:${predictionId}:${result}`,
+        },
+      })
+    }
+
+    if (settlement.resolved && ticket.status !== settlement.status) {
+      await sendPushToAllUsersSafe({
+        type: 'ticket_settled',
+        dedupeKey: `${ticketId}:${settlement.status}`,
+        payload: {
+          title: settlement.status === 'win' ? 'Tiket je výherný' : 'Tiket je prehratý',
+          body: settlement.status === 'win'
+            ? `${ticket.description || 'Tiket'} | výplata ${settlement.payout.toFixed(2)} EUR`
+            : `${ticket.description || 'Tiket'} | vklad ${toNumber(ticket.stake).toFixed(2)} EUR`,
+          url: `/tickets/${ticketId}`,
+          tag: `ticket-settled:${ticketId}:${settlement.status}`,
+        },
+      })
+    }
 
     return NextResponse.json({ ok: true })
   } catch (error) {

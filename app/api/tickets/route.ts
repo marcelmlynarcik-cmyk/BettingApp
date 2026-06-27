@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendPushToAllUsersSafe } from '@/lib/push-notifications'
 
 type TicketPredictionInput = {
   user_id: unknown
@@ -106,6 +107,17 @@ export async function POST(request: Request) {
       amount: -stake,
       date,
       description: `Stávka na tiket: ${description || 'Nový tiket'} ${ticketTag}`,
+    })
+
+    await sendPushToAllUsersSafe({
+      type: 'ticket_created',
+      dedupeKey: ticket.id,
+      payload: {
+        title: 'Nový tiket',
+        body: `${description || 'Bol pridaný nový tiket'} | vklad ${stake.toFixed(2)} EUR`,
+        url: `/tickets/${ticket.id}`,
+        tag: `ticket-created:${ticket.id}`,
+      },
     })
 
     return NextResponse.json({

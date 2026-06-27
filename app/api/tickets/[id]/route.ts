@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Ticket } from '@/lib/types'
+import { sendPushToAllUsersSafe } from '@/lib/push-notifications'
 
 type RouteContext = {
   params: Promise<{ id: string }>
@@ -152,6 +153,18 @@ export async function PATCH(request: Request, context: RouteContext) {
     )
     const supabase = createAdminClient()
 
+    const [{ data: existingTicket }, { data: existingPredictions }] = await Promise.all([
+      supabase.from('tickets').select('status').eq('id', ticketId).maybeSingle(),
+      supabase.from('predictions').select('id, result').eq('ticket_id', ticketId),
+    ])
+    const previousStatus = existingTicket?.status as Ticket['status'] | undefined
+    const previousResults = new Map(
+      ((existingPredictions || []) as Array<{ id: string; result: string | null }>).map((prediction) => [
+        prediction.id,
+        prediction.result,
+      ]),
+    )
+
     const { error: updateTicketError } = await supabase
       .from('tickets')
       .update({
@@ -240,6 +253,39 @@ export async function PATCH(request: Request, context: RouteContext) {
       })
 
       if (error) throw error
+    }
+
+    const changedResolvedPredictions = normalizedPredictions.filter((prediction) => {
+      if (!prediction.id || prediction.result === 'Pending') return false
+      return previousResults.get(prediction.id) !== prediction.result
+    })
+
+    for (const prediction of changedResolvedPredictions) {
+      await sendPushToAllUsersSafe({
+        type: 'prediction_result_changed',
+        dedupeKey: `${ticketId}:${prediction.id}:${prediction.result}`,
+        payload: {
+          title: prediction.result === 'OK' ? 'Tip bol úspešný' : 'Tip bol neúspešný',
+          body: `${description || 'Tiket'} | kurz ${Number(prediction.odds || 0).toFixed(2)}`,
+          url: `/tickets/${ticketId}`,
+          tag: `prediction:${prediction.id}:${prediction.result}`,
+        },
+      })
+    }
+
+    if (previousStatus !== status && status !== 'pending') {
+      await sendPushToAllUsersSafe({
+        type: 'ticket_settled',
+        dedupeKey: `${ticketId}:${status}`,
+        payload: {
+          title: status === 'win' ? 'Tiket je výherný' : 'Tiket je prehratý',
+          body: status === 'win'
+            ? `${description || 'Tiket'} | výplata ${payout.toFixed(2)} EUR`
+            : `${description || 'Tiket'} | vklad ${Math.abs(stake).toFixed(2)} EUR`,
+          url: `/tickets/${ticketId}`,
+          tag: `ticket-settled:${ticketId}:${status}`,
+        },
+      })
     }
 
     return NextResponse.json({ ok: true, status, payout, combinedOdds })

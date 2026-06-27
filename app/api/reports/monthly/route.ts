@@ -6,6 +6,7 @@ import {
   renderMonthlyReportHtml,
   sendMonthlyReport,
 } from '@/lib/monthly-report'
+import { sendPushToAllUsersSafe } from '@/lib/push-notifications'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -63,8 +64,9 @@ export async function GET(request: Request) {
 
     const { data: existingEvent } = await supabase
       .from('push_notification_events')
-      .select('key, sent_at')
-      .eq('key', eventKey)
+      .select('event_key, sent_at')
+      .eq('event_type', 'monthly-report-email')
+      .eq('event_key', eventKey)
       .maybeSingle()
 
     if (existingEvent && url.searchParams.get('force') !== '1') {
@@ -79,15 +81,29 @@ export async function GET(request: Request) {
 
     const result = await sendMonthlyReport(data.monthKey)
 
-    await supabase.from('push_notification_events').upsert({
-      key: eventKey,
-      type: 'monthly-report',
+    await supabase.from('push_notification_events').insert({
+      auth_user_id: null,
+      event_type: 'monthly-report-email',
+      event_key: eventKey,
       payload: {
         month: result.data.monthKey,
         recipients: result.recipients,
         breakfastLoser: result.data.breakfastLoser?.name || null,
       },
       sent_at: new Date().toISOString(),
+    })
+
+    await sendPushToAllUsersSafe({
+      type: 'monthly_summary',
+      dedupeKey: data.monthKey,
+      payload: {
+        title: 'Mesačný report je hotový',
+        body: result.data.breakfastLoser
+          ? `${result.data.monthLabel}: raňajky platí ${result.data.breakfastLoser.name}`
+          : `${result.data.monthLabel}: report bol odoslaný`,
+        url: '/statistics',
+        tag: `monthly-summary:${data.monthKey}`,
+      },
     })
 
     return NextResponse.json({

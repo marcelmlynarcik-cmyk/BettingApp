@@ -1,5 +1,7 @@
 import { Sidebar } from '@/components/sidebar'
 import { RankingTicker } from '@/components/ranking-ticker'
+import { PushNotificationsOnboarding } from '@/components/push-notifications-onboarding'
+import { requireProfile } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 export const dynamic = 'force-dynamic'
@@ -147,11 +149,17 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
+  const { profile } = await requireProfile()
   const rankingTickerItems = await getRankingTickerData()
+  const profileInfo = {
+    displayName: profile.display_name || profile.email || 'Používateľ',
+    email: profile.email,
+  }
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,#ecfdf5_0%,#f8fafc_30%,#eef2ff_60%,#f8fafc_100%)]">
       <Sidebar />
+      <PushNotificationsOnboarding profile={profileInfo} />
       {/* Mobile: top header + bottom nav spacing */}
       {/* Desktop: left sidebar spacing */}
       <main className="min-h-screen pb-[64px] pt-14 md:ml-64 md:pb-0 md:pt-0">

@@ -10,7 +10,10 @@ import {
   Trophy,
   Wallet,
   TrendingUp,
+  Settings,
+  LogOut,
 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 const navItems = [
   {
@@ -37,6 +40,11 @@ const navItems = [
     title: 'Financie',
     href: '/finance',
     icon: Wallet,
+  },
+  {
+    title: 'Nastavenia',
+    href: '/settings',
+    icon: Settings,
   },
 ]
 
@@ -113,6 +121,12 @@ export function Sidebar() {
                 Marcel, Peter & Michal
               </p>
             </div>
+            <form action="/auth/logout" method="post" className="mt-3">
+              <Button type="submit" variant="outline" className="w-full justify-start">
+                <LogOut className="h-4 w-4" />
+                Odhlásiť
+              </Button>
+            </form>
           </div>
         </div>
       </aside>
