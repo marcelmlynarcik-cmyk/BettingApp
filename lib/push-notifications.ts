@@ -109,15 +109,17 @@ export async function updatePushPreferences(
     }),
   )
 
+  const current = await getOrCreatePushPreferences(authUserId)
+  if (Object.keys(allowedPatch).length === 0) return current
+
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('push_notification_preferences')
-    .upsert({
-      auth_user_id: authUserId,
-      ...DEFAULT_PUSH_PREFERENCES,
+    .update({
       ...allowedPatch,
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'auth_user_id' })
+    })
+    .eq('auth_user_id', authUserId)
     .select('*')
     .single()
 

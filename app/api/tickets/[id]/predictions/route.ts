@@ -12,6 +12,17 @@ type PredictionRow = {
   result: 'OK' | 'NOK' | 'Pending'
   odds: number | string
   user_id?: string
+  sport_id?: string | null
+  league_id?: string | null
+  user?: { name: string | null } | null
+  sport?: { name: string | null } | null
+  league?: { name: string | null } | null
+}
+
+type JoinedPredictionRow = Omit<PredictionRow, 'user' | 'sport' | 'league'> & {
+  user?: { name: string | null } | Array<{ name: string | null }> | null
+  sport?: { name: string | null } | Array<{ name: string | null }> | null
+  league?: { name: string | null } | Array<{ name: string | null }> | null
 }
 
 type TicketRow = {
@@ -30,6 +41,43 @@ function toNumber(value: unknown) {
 
 function isResolved(result: string | null) {
   return result === 'OK' || result === 'NOK'
+}
+
+function normalizeJoinedRecord<T>(value: T | T[] | null | undefined) {
+  if (Array.isArray(value)) return value[0] || null
+  return value || null
+}
+
+function normalizePredictionRow(prediction: JoinedPredictionRow): PredictionRow {
+  return {
+    ...prediction,
+    user: normalizeJoinedRecord(prediction.user),
+    sport: normalizeJoinedRecord(prediction.sport),
+    league: normalizeJoinedRecord(prediction.league),
+  }
+}
+
+function normalizePredictionRows(predictions: JoinedPredictionRow[] | null | undefined) {
+  return (predictions || []).map(normalizePredictionRow)
+}
+
+function formatPredictionContext(prediction: Partial<PredictionRow> | null | undefined) {
+  const userName = prediction?.user?.name || 'Neznamy tiper'
+  const sportName = prediction?.sport?.name || 'Neznamy sport'
+  const leagueName = prediction?.league?.name || 'Neznama liga'
+  const odds = toNumber(prediction?.odds).toFixed(2)
+  return `${userName} | ${sportName} / ${leagueName} | kurz ${odds}`
+}
+
+function formatTicketSettlementBody(ticket: TicketRow, settlement: { status: 'win' | 'loss'; payout: number }, predictions: PredictionRow[]) {
+  const description = ticket.description || 'Tiket'
+  const firstContext = predictions[0] ? formatPredictionContext(predictions[0]) : 'bez tipov'
+
+  if (settlement.status === 'win') {
+    return `${description} | ${firstContext} | vyplata ${settlement.payout.toFixed(2)} Kc`
+  }
+
+  return `${description} | ${firstContext} | vklad ${toNumber(ticket.stake).toFixed(2)} Kc`
 }
 
 async function replacePayoutTransaction(
@@ -182,12 +230,24 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (body.action === 'markAllOK') {
       const { data: predictionsBefore, error: readError } = await supabase
         .from('predictions')
-        .select('id, ticket_id, result, odds, user_id')
+        .select(`
+          id,
+          ticket_id,
+          result,
+          odds,
+          user_id,
+          sport_id,
+          league_id,
+          user:users(name),
+          sport:sports(name),
+          league:leagues(name)
+        `)
         .eq('ticket_id', ticketId)
 
       if (readError) throw readError
 
-      const predictions = ((predictionsBefore || []) as PredictionRow[]).map((prediction) => ({
+      const previousPredictions = normalizePredictionRows(predictionsBefore as JoinedPredictionRow[] | null)
+      const predictions = previousPredictions.map((prediction) => ({
         ...prediction,
         result: 'OK' as const,
       }))
@@ -201,14 +261,14 @@ export async function PATCH(request: Request, context: RouteContext) {
 
       const settlement = await finalizeTicketIfResolved(supabase, ticket as TicketRow, predictions)
 
-      for (const prediction of predictionsBefore || []) {
+      for (const prediction of previousPredictions) {
         if (prediction.result === 'OK') continue
         await sendPushToAllUsersSafe({
           type: 'prediction_result_changed',
           dedupeKey: `${ticketId}:${prediction.id}:OK`,
           payload: {
             title: 'Tip bol úspešný',
-            body: `${ticket.description || 'Tiket'} | kurz ${toNumber(prediction.odds).toFixed(2)}`,
+            body: `${ticket.description || 'Tiket'} | ${formatPredictionContext(prediction)} | OK`,
             url: `/tickets/${ticketId}`,
             tag: `prediction:${prediction.id}:OK`,
           },
@@ -221,9 +281,7 @@ export async function PATCH(request: Request, context: RouteContext) {
           dedupeKey: `${ticketId}:${settlement.status}`,
           payload: {
             title: settlement.status === 'win' ? 'Tiket je výherný' : 'Tiket je prehratý',
-            body: settlement.status === 'win'
-              ? `${ticket.description || 'Tiket'} | výplata ${settlement.payout.toFixed(2)} EUR`
-              : `${ticket.description || 'Tiket'} | vklad ${toNumber(ticket.stake).toFixed(2)} EUR`,
+            body: formatTicketSettlementBody(ticket as TicketRow, settlement, predictions),
             url: `/tickets/${ticketId}`,
             tag: `ticket-settled:${ticketId}:${settlement.status}`,
           },
@@ -242,7 +300,18 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const { data: predictionBefore, error: predictionBeforeError } = await supabase
       .from('predictions')
-      .select('id, result, odds')
+      .select(`
+        id,
+        ticket_id,
+        result,
+        odds,
+        user_id,
+        sport_id,
+        league_id,
+        user:users(name),
+        sport:sports(name),
+        league:leagues(name)
+      `)
       .eq('id', predictionId)
       .eq('ticket_id', ticketId)
       .maybeSingle()
@@ -259,20 +328,35 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const { data: predictions, error: predictionsError } = await supabase
       .from('predictions')
-      .select('id, ticket_id, result, odds, user_id')
+      .select(`
+        id,
+        ticket_id,
+        result,
+        odds,
+        user_id,
+        sport_id,
+        league_id,
+        user:users(name),
+        sport:sports(name),
+        league:leagues(name)
+      `)
       .eq('ticket_id', ticketId)
 
     if (predictionsError) throw predictionsError
 
-    const settlement = await finalizeTicketIfResolved(supabase, ticket as TicketRow, (predictions || []) as PredictionRow[])
+    const normalizedPredictions = normalizePredictionRows(predictions as JoinedPredictionRow[] | null)
+    const settlement = await finalizeTicketIfResolved(supabase, ticket as TicketRow, normalizedPredictions)
 
     if (predictionBefore?.result !== result) {
+      const normalizedPredictionBefore = predictionBefore
+        ? normalizePredictionRow(predictionBefore as JoinedPredictionRow)
+        : null
       await sendPushToAllUsersSafe({
         type: 'prediction_result_changed',
         dedupeKey: `${ticketId}:${predictionId}:${result}`,
         payload: {
           title: result === 'OK' ? 'Tip bol úspešný' : 'Tip bol neúspešný',
-          body: `${ticket.description || 'Tiket'} | kurz ${toNumber(predictionBefore?.odds).toFixed(2)}`,
+          body: `${ticket.description || 'Tiket'} | ${formatPredictionContext(normalizedPredictionBefore)} | ${result}`,
           url: `/tickets/${ticketId}`,
           tag: `prediction:${predictionId}:${result}`,
         },
@@ -285,9 +369,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         dedupeKey: `${ticketId}:${settlement.status}`,
         payload: {
           title: settlement.status === 'win' ? 'Tiket je výherný' : 'Tiket je prehratý',
-          body: settlement.status === 'win'
-            ? `${ticket.description || 'Tiket'} | výplata ${settlement.payout.toFixed(2)} EUR`
-            : `${ticket.description || 'Tiket'} | vklad ${toNumber(ticket.stake).toFixed(2)} EUR`,
+          body: formatTicketSettlementBody(ticket as TicketRow, settlement, normalizedPredictions),
           url: `/tickets/${ticketId}`,
           tag: `ticket-settled:${ticketId}:${settlement.status}`,
         },

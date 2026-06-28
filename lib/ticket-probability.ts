@@ -29,10 +29,16 @@ type StatsBucket = {
 }
 
 const PRIOR_WEIGHT = 12
+const GLOBAL_PRIOR_WEIGHT = 8
 
 function fallbackProbabilityFromOdds(odds: number) {
   const implied = 1 / odds
   return Math.max(0.02, Math.min(0.98, implied))
+}
+
+function blendRateWithOdds(wins: number, total: number, oddsProbability: number, priorWeight = PRIOR_WEIGHT) {
+  if (total <= 0) return oddsProbability
+  return (wins + oddsProbability * priorWeight) / (total + priorWeight)
 }
 
 export function getOddsBucket(odds: number) {
@@ -91,15 +97,15 @@ export function estimatePredictionProbability(
   }
 
   const bucket = getOddsBucket(odds)
+  const oddsProbability = fallbackProbabilityFromOdds(odds)
   const global = statsMap.get('global|b:any')
   if (!global || global.total === 0) {
     return {
-      probability: fallbackProbabilityFromOdds(odds),
+      probability: oddsProbability,
       sampleSize: 0,
       sourceLabel: 'podľa kurzu',
     }
   }
-  const globalRate = global.wins / global.total
 
   const candidateKeys = [
     { key: `u:${prediction.user_id}|s:${prediction.sport_id}|l:${prediction.league_id}|b:${bucket}`, label: 'tipér + šport + liga + kurz', minSample: 8 },
@@ -114,20 +120,22 @@ export function estimatePredictionProbability(
 
   for (const candidate of candidateKeys) {
     const bucketStat = statsMap.get(candidate.key)
-    if (!bucketStat || bucketStat.total < candidate.minSample) continue
+    if (!bucketStat || bucketStat.total <= 0) continue
 
-    const smoothed = (bucketStat.wins + globalRate * PRIOR_WEIGHT) / (bucketStat.total + PRIOR_WEIGHT)
+    const reliability = Math.min(1, bucketStat.total / candidate.minSample)
+    const smoothed = blendRateWithOdds(bucketStat.wins, bucketStat.total, oddsProbability)
+    const probability = smoothed * reliability + oddsProbability * (1 - reliability)
     return {
-      probability: smoothed,
+      probability,
       sampleSize: bucketStat.total,
-      sourceLabel: candidate.label,
+      sourceLabel: bucketStat.total >= candidate.minSample ? candidate.label : `${candidate.label} + kurz`,
     }
   }
 
   return {
-    probability: globalRate,
+    probability: blendRateWithOdds(global.wins, global.total, oddsProbability, GLOBAL_PRIOR_WEIGHT),
     sampleSize: global.total,
-    sourceLabel: 'globálne celkovo',
+    sourceLabel: 'globálne celkovo + kurz',
   }
 }
 
