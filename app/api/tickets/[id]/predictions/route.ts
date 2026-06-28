@@ -81,10 +81,11 @@ function formatTicketSettlementBody(ticket: TicketRow, settlement: { status: 'wi
   const firstContext = predictions[0] ? formatPredictionContext(predictions[0]) : 'bez tipov'
 
   if (settlement.status === 'win') {
-    return `${description} | ${firstContext} | vyplata ${settlement.payout.toFixed(2)} Kc`
+    const profit = settlement.payout - toNumber(ticket.stake)
+    return `${description} | ${firstContext} | výplata ${settlement.payout.toFixed(2)} Kč | zisk ${profit.toFixed(2)} Kč`
   }
 
-  return `${description} | ${firstContext} | vklad ${toNumber(ticket.stake).toFixed(2)} Kc`
+  return `${description} | ${firstContext} | vklad ${toNumber(ticket.stake).toFixed(2)} Kč`
 }
 
 async function replacePayoutTransaction(

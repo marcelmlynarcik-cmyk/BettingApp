@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendFinanceUpdatePush } from '@/lib/finance-notifications'
 import { sendPushToAllUsersSafe } from '@/lib/push-notifications'
 
 type TicketPredictionInput = {
@@ -114,23 +113,14 @@ export async function POST(request: Request) {
       .select('id, type, amount, date, description, ticket_id')
       .single()
 
-    if (transaction) {
-      await sendFinanceUpdatePush({
-        id: transaction.id,
-        type: transaction.type,
-        amount: Number(transaction.amount || 0),
-        date: transaction.date,
-        description: transaction.description,
-        ticketId: transaction.ticket_id,
-      })
-    }
+    void transaction
 
     await sendPushToAllUsersSafe({
       type: 'ticket_created',
       dedupeKey: ticket.id,
       payload: {
         title: 'Nový tiket',
-        body: `${description || 'Bol pridaný nový tiket'} | vklad ${stake.toFixed(2)} Kč`,
+        body: `${description || 'Bol pridaný nový tiket'} | vklad ${stake.toFixed(2)} Kč | kurz ${combinedOdds.toFixed(2)} | možná výhra ${possibleWin.toFixed(2)} Kč`,
         url: `/tickets/${ticket.id}`,
         tag: `ticket-created:${ticket.id}`,
       },

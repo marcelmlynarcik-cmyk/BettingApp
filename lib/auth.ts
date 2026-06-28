@@ -8,6 +8,7 @@ export type AppProfile = {
   display_name: string | null
   avatar_url: string | null
   email: string | null
+  locale: string | null
 }
 
 export async function getCurrentUser() {
@@ -53,7 +54,7 @@ export async function ensureProfileForUser(user: Awaited<ReturnType<typeof getCu
       email,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'id' })
-    .select('id, user_id, display_name, avatar_url, email')
+    .select('id, user_id, display_name, avatar_url, email, locale')
     .single()
 
   if (error) throw error

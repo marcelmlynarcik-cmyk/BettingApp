@@ -14,37 +14,39 @@ import {
   LogOut,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { getDictionary, type AppLocale } from '@/lib/i18n'
 
 const navItems = [
   {
-    title: 'Prehľad',
+    labelKey: 'overview',
     href: '/',
     icon: LayoutDashboard,
   },
   {
-    title: 'Tikety',
+    labelKey: 'tickets',
     href: '/tickets',
     icon: Ticket,
   },
   {
-    title: 'Štatistiky',
+    labelKey: 'statistics',
     href: '/statistics',
     icon: BarChart3,
   },
   {
-    title: 'Sieň slávy',
+    labelKey: 'ranking',
     href: '/ranking',
     icon: Trophy,
   },
   {
-    title: 'Financie',
+    labelKey: 'finance',
     href: '/finance',
     icon: Wallet,
   },
-]
+] as const
 
-export function Sidebar() {
+export function Sidebar({ locale }: { locale: AppLocale }) {
   const pathname = usePathname()
+  const labels = getDictionary(locale)
 
   return (
     <>
@@ -56,7 +58,7 @@ export function Sidebar() {
         </div>
         <Link
           href="/settings"
-          aria-label="Nastavenia"
+          aria-label={labels.settings}
           className={cn(
             'rounded-lg p-2 transition-colors active:scale-95',
             pathname === '/settings'
@@ -85,7 +87,7 @@ export function Sidebar() {
                 )}
               >
                 <item.icon className={cn('h-5 w-5', isActive && 'text-primary')} />
-                <span>{item.title}</span>
+                <span>{labels[item.labelKey]}</span>
               </Link>
             )
           })}
@@ -106,7 +108,7 @@ export function Sidebar() {
             </div>
             <Link
               href="/settings"
-              aria-label="Nastavenia"
+              aria-label={labels.settings}
               className={cn(
                 'rounded-lg p-2 transition-colors',
                 pathname === '/settings'
@@ -132,14 +134,14 @@ export function Sidebar() {
                   )}
                 >
                   <item.icon className="h-5 w-5" />
-                  {item.title}
+                  {labels[item.labelKey]}
                 </Link>
               )
             })}
           </nav>
           <div className="p-4">
             <div className="rounded-xl bg-sidebar-accent border border-sidebar-border p-4">
-              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Sledované tikety pre</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{labels.trackedFor}</p>
               <p className="mt-1 text-sm font-bold text-sidebar-foreground">
                 Marcel, Peter & Michal
               </p>
@@ -147,7 +149,7 @@ export function Sidebar() {
             <form action="/auth/logout" method="post" className="mt-3">
               <Button type="submit" variant="outline" className="w-full justify-start">
                 <LogOut className="h-4 w-4" />
-                Odhlásiť
+                {labels.logout}
               </Button>
             </form>
           </div>

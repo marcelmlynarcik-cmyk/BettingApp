@@ -12,6 +12,7 @@ Tento subor je spolocny pracovny backlog. Pri dalsich upravach budeme doplnat st
 - [x] Napojit financne push notifikacie na realne pohyby: vklad, vyber, stavka pri novom tikete a vyplata pri vyhernom tikete.
 - [x] Pridat audit log vyhodnoteni tipov: kto zmenil tip, z akeho stavu na aky, kedy a cez aku akciu.
 - [x] Pridat UI historiu zmien na detail tiketu z tabulky `prediction_audit_logs`.
+- [x] Pridat do Nastaveni volbu jazyka aplikacie medzi SK a CZ a ulozit ju do profilu.
 
 ## Zistenia z aplikacie a databazy
 
@@ -24,13 +25,16 @@ Tento subor je spolocny pracovny backlog. Pri dalsich upravach budeme doplnat st
 - Aplikacia je urcena iba pre Marcel/Peter/Michal, preto zatial nepotrebujeme oddelovat tikety a financie podla Google pouzivatela.
 - Mena aplikacie je CZK, v UI aj notifikaciach pouzivame `Kč`, nie `EUR`.
 - Audit log je zapisovany do `prediction_audit_logs` pri rychlom vyhodnoteni tipu, hromadnom `Vsetko OK` aj editacii tiketu.
+- Jazyk profilu je ulozeny v `profiles.locale`; zakladny preklad je napojeny na nastavenia a hlavnu navigaciu.
+- Pri podani tiketu posielame iba notifikaciu `Novy tiket`; neposielame duplicitnu financnu notifikaciu `Nova stavka`. Ticket push obsahuje vklad, kurz a moznu vyhru.
+- Pri vyhodnotenom vyhernom tikete push obsahuje vyplatu aj cisty zisk.
 
 ## Navrhy na dalsie opravy a vylepsenia
 
 - Odlozene: ownership model cez `auth_user_id` netreba, pokial aplikacia ostava spolocna iba pre troch pouzivatelov.
 - Odlozene/upravit zadanie: ulozene pre-match pravdepodobnosti netreba robit tak, aby blokovali dynamicky prepocet po OK/NOK; ak sa budu ukladat, maju byt iba historicky snapshot, nie hodnota pre aktualnu sancu tiketu.
 - Doplnit email notifikacie pre financne udalosti, ak ich budeme chciet mimo Web Push.
-- Pridat do Nastaveni volbu jazyka aplikacie medzi SK a CZ.
+- Postupne prelozit dalsie obrazovky cez `lib/i18n.ts`, hlavne financie, detail tiketu, statistiky a ranking.
 - Zjednotit menu pre desktop a mobil tak, aby nastavenia boli vzdy v hlavicke/profilovej casti a nie ako bezna hlavna sekcia.
 - Pridat testy pre `ticket-probability`, hlavne male vzorky, rozne kurzy a fallback bez historie.
 - Pridat testy alebo aspon kontrolny skript pre API `/api/tickets/[id]/predictions`, aby vyhodnotenie tiketu vzdy vytvorilo spravne payout/profit/finance zaznamy.

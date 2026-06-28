@@ -26,16 +26,23 @@ function titleForType(type: FinanceNotificationInput['type']) {
   }
 }
 
+function cleanDescription(value: string | null | undefined) {
+  return value?.replace(/\s*\[ticket:[0-9a-fA-F-]{36}\]\s*/g, '').trim() || null
+}
+
 function bodyForTransaction(input: FinanceNotificationInput) {
   const parts = [money(input.amount)]
+  const description = cleanDescription(input.description)
 
   if (input.date) parts.push(input.date)
-  if (input.description) parts.push(input.description)
+  if (description) parts.push(description)
 
   return parts.join(' | ')
 }
 
 export async function sendFinanceUpdatePush(input: FinanceNotificationInput) {
+  if (input.type === 'bet') return
+
   await sendPushToAllUsersSafe({
     type: 'finance_updates',
     dedupeKey: input.id,

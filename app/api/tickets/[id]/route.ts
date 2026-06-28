@@ -335,7 +335,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         payload: {
           title: status === 'win' ? 'Tiket je výherný' : 'Tiket je prehratý',
           body: status === 'win'
-            ? `${description || 'Tiket'} | výplata ${payout.toFixed(2)} Kč`
+            ? `${description || 'Tiket'} | výplata ${payout.toFixed(2)} Kč | zisk ${(payout - stake).toFixed(2)} Kč`
             : `${description || 'Tiket'} | vklad ${Math.abs(stake).toFixed(2)} Kč`,
           url: `/tickets/${ticketId}`,
           tag: `ticket-settled:${ticketId}:${status}`,
