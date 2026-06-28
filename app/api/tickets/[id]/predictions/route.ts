@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
+import { ensureProfileForUser, getCurrentUser } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendFinanceUpdatePush } from '@/lib/finance-notifications'
+import { insertPredictionAuditLog } from '@/lib/prediction-audit'
 import { sendPushToAllUsersSafe } from '@/lib/push-notifications'
 
 type RouteContext = {
@@ -42,6 +44,10 @@ function toNumber(value: unknown) {
 
 function isResolved(result: string | null) {
   return result === 'OK' || result === 'NOK'
+}
+
+function toAuditResult(value: unknown) {
+  return value === 'OK' || value === 'NOK' || value === 'Pending' ? value : null
 }
 
 function normalizeJoinedRecord<T>(value: T | T[] | null | undefined) {
@@ -194,6 +200,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     const { id: ticketId } = await context.params
     const body = await request.json()
     const supabase = createAdminClient()
+    const user = await getCurrentUser()
+    const profile = await ensureProfileForUser(user)
+    const actorName = profile?.display_name || user?.email || null
+    const actorEmail = profile?.email || user?.email || null
 
     const { data: ticket, error: ticketError } = await supabase
       .from('tickets')
@@ -280,6 +290,17 @@ export async function PATCH(request: Request, context: RouteContext) {
 
       for (const prediction of previousPredictions) {
         if (prediction.result === 'OK') continue
+        await insertPredictionAuditLog(supabase, {
+          ticketId,
+          predictionId: prediction.id,
+          previousResult: toAuditResult(prediction.result),
+          nextResult: 'OK',
+          authUserId: user?.id || null,
+          actorName,
+          actorEmail,
+          action: 'mark_all_ok',
+        })
+
         await sendPushToAllUsersSafe({
           type: 'prediction_result_changed',
           dedupeKey: `${ticketId}:${prediction.id}:OK`,
@@ -368,6 +389,17 @@ export async function PATCH(request: Request, context: RouteContext) {
       const normalizedPredictionBefore = predictionBefore
         ? normalizePredictionRow(predictionBefore as JoinedPredictionRow)
         : null
+      await insertPredictionAuditLog(supabase, {
+        ticketId,
+        predictionId,
+        previousResult: toAuditResult(normalizedPredictionBefore?.result),
+        nextResult: result,
+        authUserId: user?.id || null,
+        actorName,
+        actorEmail,
+        action: 'single_result_update',
+      })
+
       await sendPushToAllUsersSafe({
         type: 'prediction_result_changed',
         dedupeKey: `${ticketId}:${predictionId}:${result}`,

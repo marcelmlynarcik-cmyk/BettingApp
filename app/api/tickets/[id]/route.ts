@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
+import { ensureProfileForUser, getCurrentUser } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Ticket } from '@/lib/types'
 import { sendFinanceUpdatePush } from '@/lib/finance-notifications'
+import { insertPredictionAuditLog } from '@/lib/prediction-audit'
 import { sendPushToAllUsersSafe } from '@/lib/push-notifications'
 
 type RouteContext = {
@@ -117,6 +119,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     const description = toOptionalString(body.description)
     const ticketUrl = toOptionalString(body.ticket_url)
     const predictions = Array.isArray(body.predictions) ? (body.predictions as EditablePredictionInput[]) : []
+    const user = await getCurrentUser()
+    const profile = await ensureProfileForUser(user)
+    const actorName = profile?.display_name || user?.email || null
+    const actorEmail = profile?.email || user?.email || null
 
     if (!date || stake === null || stake <= 0 || predictions.length === 0) {
       return NextResponse.json({ error: 'Invalid ticket update' }, { status: 400 })
@@ -290,6 +296,24 @@ export async function PATCH(request: Request, context: RouteContext) {
       if (!prediction.id || prediction.result === 'Pending') return false
       return previousResults.get(prediction.id) !== prediction.result
     })
+
+    const changedPredictions = normalizedPredictions.filter((prediction) => {
+      if (!prediction.id || !prediction.result) return false
+      return previousResults.get(prediction.id) !== prediction.result
+    })
+
+    for (const prediction of changedPredictions) {
+      await insertPredictionAuditLog(supabase, {
+        ticketId,
+        predictionId: prediction.id || '',
+        previousResult: toResult(previousResults.get(prediction.id || '')),
+        nextResult: prediction.result,
+        authUserId: user?.id || null,
+        actorName,
+        actorEmail,
+        action: 'ticket_edit',
+      })
+    }
 
     for (const prediction of changedResolvedPredictions) {
       await sendPushToAllUsersSafe({

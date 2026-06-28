@@ -10,6 +10,7 @@ Tento subor je spolocny pracovny backlog. Pri dalsich upravach budeme doplnat st
 - [x] Opravit ukladanie push nastaveni, hlavne volbu `finance_updates`, aby sa pri zmene jednej volby neprepisovali ostatne hodnoty na default.
 - [x] Odobrat Nastavenia zo spodnej mobilnej navigacie a pridat ikonu nastaveni do horneho riadku s nazvom aplikacie.
 - [x] Napojit financne push notifikacie na realne pohyby: vklad, vyber, stavka pri novom tikete a vyplata pri vyhernom tikete.
+- [x] Pridat audit log vyhodnoteni tipov: kto zmenil tip, z akeho stavu na aky, kedy a cez aku akciu.
 
 ## Zistenia z aplikacie a databazy
 
@@ -21,12 +22,13 @@ Tento subor je spolocny pracovny backlog. Pri dalsich upravach budeme doplnat st
 - Pravdepodobnost ma ostat dynamicka pocas vyhodnocovania tiketu: OK tip sa berie ako splneny, NOK automaticky zrazi aktualnu sancu tiketu na 0.
 - Aplikacia je urcena iba pre Marcel/Peter/Michal, preto zatial nepotrebujeme oddelovat tikety a financie podla Google pouzivatela.
 - Mena aplikacie je CZK, v UI aj notifikaciach pouzivame `Kč`, nie `EUR`.
+- Audit log je zapisovany do `prediction_audit_logs` pri rychlom vyhodnoteni tipu, hromadnom `Vsetko OK` aj editacii tiketu.
 
 ## Navrhy na dalsie opravy a vylepsenia
 
 - Odlozene: ownership model cez `auth_user_id` netreba, pokial aplikacia ostava spolocna iba pre troch pouzivatelov.
 - Odlozene/upravit zadanie: ulozene pre-match pravdepodobnosti netreba robit tak, aby blokovali dynamicky prepocet po OK/NOK; ak sa budu ukladat, maju byt iba historicky snapshot, nie hodnota pre aktualnu sancu tiketu.
-- Zaviest audit log pre vyhodnotenia tipov: kto zmenil tip, z akeho stavu na aky, kedy a z akeho zariadenia.
+- Pridat UI historiu zmien na detail tiketu z tabulky `prediction_audit_logs`.
 - Doplnit email notifikacie pre financne udalosti, ak ich budeme chciet mimo Web Push.
 - Pridat do Nastaveni volbu jazyka aplikacie medzi SK a CZ.
 - Zjednotit menu pre desktop a mobil tak, aby nastavenia boli vzdy v hlavicke/profilovej casti a nie ako bezna hlavna sekcia.
