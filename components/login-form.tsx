@@ -2,17 +2,19 @@
 
 import { Chrome } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { getAppOrigin, getSafeNextPath } from '@/lib/app-url'
 import { notifyError } from '@/lib/notifications'
 import { createClient } from '@/lib/supabase/client'
 
 export function LoginForm({ nextPath = '/' }: { nextPath?: string }) {
   async function signInWithGoogle() {
     const supabase = createClient()
-    const origin = window.location.origin
+    const origin = getAppOrigin(window.location.origin)
+    const safeNextPath = getSafeNextPath(nextPath)
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(nextPath)}`,
+        redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(safeNextPath)}`,
       },
     })
 

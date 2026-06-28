@@ -42,7 +42,6 @@ export function TicketActions({ ticketId, description }: TicketActionsProps) {
     ticket_url: '',
   })
   const [predictionForms, setPredictionForms] = useState<EditablePrediction[]>([])
-  const [originalTicketStatus, setOriginalTicketStatus] = useState<Ticket['status'] | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
@@ -61,35 +60,6 @@ export function TicketActions({ ticketId, description }: TicketActionsProps) {
       updated[index] = { ...updated[index], [field]: value }
       return updated
     })
-  }
-
-  const computeSettlement = (predictions: EditablePrediction[], stake: number, combinedOdds: number) => {
-    const allResolved = predictions.every((p) => p.result !== 'Pending')
-    const allOK = predictions.every((p) => p.result === 'OK')
-
-    const status: Ticket['status'] = allResolved ? (allOK ? 'win' : 'loss') : 'pending'
-    const payout = status === 'win' ? stake * combinedOdds : 0
-    const totalProfit = payout - stake
-
-    const profitsByPredictionId: Record<string, number> = {}
-    if (status === 'win' && predictions.length > 0) {
-      const profitPerPrediction = totalProfit / predictions.length
-      predictions.forEach((p) => {
-        profitsByPredictionId[p.id] = profitPerPrediction
-      })
-    } else if (status === 'loss') {
-      const nokPredictions = predictions.filter((p) => p.result === 'NOK')
-      const lossPerNok = nokPredictions.length > 0 ? -stake / nokPredictions.length : 0
-      predictions.forEach((p) => {
-        profitsByPredictionId[p.id] = p.result === 'NOK' ? lossPerNok : 0
-      })
-    } else {
-      predictions.forEach((p) => {
-        profitsByPredictionId[p.id] = 0
-      })
-    }
-
-    return { status, payout, profitsByPredictionId }
   }
 
   const handleOpenEdit = async () => {
@@ -114,7 +84,6 @@ export function TicketActions({ ticketId, description }: TicketActionsProps) {
         description: ticket.description || '',
         ticket_url: ticket.ticket_url || '',
       })
-      setOriginalTicketStatus(ticket.status as Ticket['status'])
       setPredictionForms(
         (predictions || []).map((prediction) => ({
           id: prediction.id,

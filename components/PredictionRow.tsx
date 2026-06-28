@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { cn } from '@/lib/utils'
 import type { Prediction, User, Sport, League } from '@/lib/types'
 import { Edit2, Check, X } from 'lucide-react'
 

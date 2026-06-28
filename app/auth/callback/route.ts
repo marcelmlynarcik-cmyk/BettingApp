@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server'
+import { getAppOrigin, getSafeNextPath } from '@/lib/app-url'
 import { ensureProfileForUser } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url)
   const code = requestUrl.searchParams.get('code')
-  const next = requestUrl.searchParams.get('next') || '/'
+  const next = getSafeNextPath(requestUrl.searchParams.get('next'))
+  const origin = getAppOrigin(requestUrl.origin)
 
   if (code) {
     const supabase = await createClient()
@@ -17,5 +19,5 @@ export async function GET(request: Request) {
     await ensureProfileForUser(user)
   }
 
-  return NextResponse.redirect(new URL(next, requestUrl.origin))
+  return NextResponse.redirect(new URL(next, origin))
 }

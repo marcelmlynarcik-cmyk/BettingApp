@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils'
 import type { UserStats } from '@/lib/types'
-import { Trophy, TrendingUp, TrendingDown, Target, BarChart3 } from 'lucide-react'
+import { Trophy, Target, BarChart3 } from 'lucide-react'
 
 interface LeaderboardCardProps {
   stats: (UserStats & { average_odds: number; yield: number })[]

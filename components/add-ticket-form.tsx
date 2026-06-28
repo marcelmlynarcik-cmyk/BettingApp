@@ -325,8 +325,9 @@ export function AddTicketForm({ users, sports, leagues, currentBankroll, onClose
         if (!isActive) return
         console.error('Error fetching historical predictions:', error)
       } finally {
-        if (!isActive) return
-        setStatsLoaded(true)
+        if (isActive) {
+          setStatsLoaded(true)
+        }
       }
     }
 
