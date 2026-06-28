@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendFinanceUpdatePush } from '@/lib/finance-notifications'
 import { sendPushToAllUsersSafe } from '@/lib/push-notifications'
 
 type RouteContext = {
@@ -92,15 +93,31 @@ async function replacePayoutTransaction(
     .eq('ticket_id', ticket.id)
     .eq('type', 'payout')
 
-  const { error } = await supabase.from('finance_transactions').insert({
-    type: 'payout',
-    ticket_id: ticket.id,
-    amount,
-    date: new Date().toISOString().split('T')[0],
-    description,
-  })
+  const date = new Date().toISOString().split('T')[0]
+  const { data: transaction, error } = await supabase
+    .from('finance_transactions')
+    .insert({
+      type: 'payout',
+      ticket_id: ticket.id,
+      amount,
+      date,
+      description,
+    })
+    .select('id, type, amount, date, description, ticket_id')
+    .single()
 
   if (error) throw error
+
+  if (transaction) {
+    await sendFinanceUpdatePush({
+      id: transaction.id,
+      type: transaction.type,
+      amount: Number(transaction.amount || 0),
+      date: transaction.date,
+      description: transaction.description,
+      ticketId: transaction.ticket_id,
+    })
+  }
 }
 
 async function clearPayoutTransaction(

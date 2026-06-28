@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Ticket } from '@/lib/types'
+import { sendFinanceUpdatePush } from '@/lib/finance-notifications'
 import { sendPushToAllUsersSafe } from '@/lib/push-notifications'
 
 type RouteContext = {
@@ -224,15 +225,30 @@ export async function PATCH(request: Request, context: RouteContext) {
 
       if (error) throw error
     } else {
-      const { error } = await supabase.from('finance_transactions').insert({
-        type: 'bet',
-        ticket_id: ticketId,
-        amount: -Math.abs(stake),
-        date,
-        description: `Stávka na tiket: ${ticketDescription} ${ticketTag}`,
-      })
+      const { data: transaction, error } = await supabase
+        .from('finance_transactions')
+        .insert({
+          type: 'bet',
+          ticket_id: ticketId,
+          amount: -Math.abs(stake),
+          date,
+          description: `Stávka na tiket: ${ticketDescription} ${ticketTag}`,
+        })
+        .select('id, type, amount, date, description, ticket_id')
+        .single()
 
       if (error) throw error
+
+      if (transaction) {
+        await sendFinanceUpdatePush({
+          id: transaction.id,
+          type: transaction.type,
+          amount: Number(transaction.amount || 0),
+          date: transaction.date,
+          description: transaction.description,
+          ticketId: transaction.ticket_id,
+        })
+      }
     }
 
     const { error: deletePayoutsError } = await supabase
@@ -244,15 +260,30 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (deletePayoutsError) throw deletePayoutsError
 
     if (status === 'win' && payout > 0) {
-      const { error } = await supabase.from('finance_transactions').insert({
-        type: 'payout',
-        ticket_id: ticketId,
-        amount: payout,
-        date,
-        description: `Výplata za tiket: ${payoutDescription} ${ticketTag}`,
-      })
+      const { data: transaction, error } = await supabase
+        .from('finance_transactions')
+        .insert({
+          type: 'payout',
+          ticket_id: ticketId,
+          amount: payout,
+          date,
+          description: `Výplata za tiket: ${payoutDescription} ${ticketTag}`,
+        })
+        .select('id, type, amount, date, description, ticket_id')
+        .single()
 
       if (error) throw error
+
+      if (transaction) {
+        await sendFinanceUpdatePush({
+          id: transaction.id,
+          type: transaction.type,
+          amount: Number(transaction.amount || 0),
+          date: transaction.date,
+          description: transaction.description,
+          ticketId: transaction.ticket_id,
+        })
+      }
     }
 
     const changedResolvedPredictions = normalizedPredictions.filter((prediction) => {
@@ -280,8 +311,8 @@ export async function PATCH(request: Request, context: RouteContext) {
         payload: {
           title: status === 'win' ? 'Tiket je výherný' : 'Tiket je prehratý',
           body: status === 'win'
-            ? `${description || 'Tiket'} | výplata ${payout.toFixed(2)} EUR`
-            : `${description || 'Tiket'} | vklad ${Math.abs(stake).toFixed(2)} EUR`,
+            ? `${description || 'Tiket'} | výplata ${payout.toFixed(2)} Kč`
+            : `${description || 'Tiket'} | vklad ${Math.abs(stake).toFixed(2)} Kč`,
           url: `/tickets/${ticketId}`,
           tag: `ticket-settled:${ticketId}:${status}`,
         },

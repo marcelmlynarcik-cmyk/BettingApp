@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendPushToAllUsersSafe } from '@/lib/push-notifications'
+import { sendFinanceUpdatePush } from '@/lib/finance-notifications'
 
 function toNumber(value: unknown) {
   const parsed = Number(value)
@@ -31,21 +31,19 @@ export async function POST(request: Request) {
       date,
       description,
     })
-      .select('id')
+      .select('id, type, amount, date, description, ticket_id')
       .single()
 
     if (error) throw error
 
     if (transaction) {
-      await sendPushToAllUsersSafe({
-        type: 'finance_updates',
-        dedupeKey: transaction.id,
-        payload: {
-          title: type === 'deposit' ? 'Nový vklad' : 'Nový výber',
-          body: `${Math.abs(finalAmount).toFixed(2)} EUR${description ? ` | ${description}` : ''}`,
-          url: '/finance',
-          tag: `finance:${transaction.id}`,
-        },
+      await sendFinanceUpdatePush({
+        id: transaction.id,
+        type: transaction.type,
+        amount: Number(transaction.amount || 0),
+        date: transaction.date,
+        description: transaction.description,
+        ticketId: transaction.ticket_id,
       })
     }
 
