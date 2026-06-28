@@ -9,12 +9,13 @@ import {
   BarChart3, 
   Target, 
   Info,
-  ExternalLink
+  ExternalLink,
+  History,
 } from 'lucide-react'
 import Link from 'next/link'
 import { PredictionResolver } from '@/components/PredictionResolver'
 import { TicketActions } from '@/components/TicketActions'
-import type { Ticket } from '@/lib/types'
+import type { League, Prediction, Sport, Ticket, User } from '@/lib/types'
 import {
   buildProbabilityIndex,
   estimatePredictionProbability,
@@ -23,6 +24,39 @@ import {
 } from '@/lib/ticket-probability'
 
 export const dynamic = 'force-dynamic'
+
+type AuditLogRecord = {
+  id: string
+  ticket_id: string
+  prediction_id: string
+  auth_user_id: string | null
+  actor_name: string | null
+  actor_email: string | null
+  previous_result: 'OK' | 'NOK' | 'Pending' | null
+  next_result: 'OK' | 'NOK' | 'Pending' | null
+  action: 'single_result_update' | 'mark_all_ok' | 'ticket_edit'
+  created_at: string
+}
+
+type EnrichedPrediction = Prediction & { user?: User; sport?: Sport; league?: League }
+type EnrichedAuditLog = AuditLogRecord & { prediction?: EnrichedPrediction }
+
+function formatAuditAction(action: AuditLogRecord['action']) {
+  switch (action) {
+    case 'single_result_update':
+      return 'Vyhodnotenie tipu'
+    case 'mark_all_ok':
+      return 'Všetko OK'
+    case 'ticket_edit':
+      return 'Editácia tiketu'
+  }
+}
+
+function formatAuditResult(result: AuditLogRecord['previous_result']) {
+  if (result === 'OK') return 'OK'
+  if (result === 'NOK') return 'NOK'
+  return 'Čaká'
+}
 
 async function getTicketData(id: string) {
   const supabase = createAdminClient()
@@ -56,11 +90,17 @@ async function getTicketData(id: string) {
   }
 
   // Get users for the predictions
-  const [{ data: users }, { data: sports }, { data: leagues }, { data: closedPredictions }] = await Promise.all([
+  const [{ data: users }, { data: sports }, { data: leagues }, { data: closedPredictions }, { data: auditLogs }] = await Promise.all([
     supabase.from('users').select('*'),
     supabase.from('sports').select('*'),
     supabase.from('leagues').select('*'),
     supabase.from('predictions').select('user_id, sport_id, league_id, odds, result').in('result', ['OK', 'NOK']),
+    supabase
+      .from('prediction_audit_logs')
+      .select('*')
+      .eq('ticket_id', id)
+      .order('created_at', { ascending: false })
+      .limit(20),
   ])
 
   const statsIndex = buildProbabilityIndex((closedPredictions || []) as ClosedPredictionRecord[])
@@ -98,12 +138,19 @@ async function getTicketData(id: string) {
     statsIndex,
   )
 
+  const predictionById = new Map(enrichedPredictions.map((prediction) => [prediction.id, prediction]))
+  const enrichedAuditLogs = ((auditLogs || []) as AuditLogRecord[]).map((log) => ({
+    ...log,
+    prediction: predictionById.get(log.prediction_id),
+  }))
+
   return {
     ticket: {
       ...(ticket as Ticket),
       estimated_win_probability: ticketWinProbability,
     },
-    predictions: enrichedPredictions
+    predictions: enrichedPredictions,
+    auditLogs: enrichedAuditLogs,
   }
 }
 
@@ -115,7 +162,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
     notFound()
   }
 
-  const { ticket, predictions } = data
+  const { ticket, predictions, auditLogs } = data
 
   const getStatusLabel = (status: Ticket['status']) => {
     switch (status) {
@@ -191,6 +238,58 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
               </a>
             </div>
           )}
+
+          <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+            <div className="flex items-center gap-2 border-b border-border/70 bg-white/70 p-4">
+              <History className="h-4 w-4 text-muted-foreground" />
+              <h3 className="font-bold text-card-foreground uppercase tracking-wider text-xs">História zmien</h3>
+            </div>
+            <div className="divide-y divide-border">
+              {auditLogs.length > 0 ? (
+                auditLogs.map((log: EnrichedAuditLog) => {
+                  const prediction = log.prediction
+                  const actor = log.actor_name || log.actor_email || 'Neznámy používateľ'
+                  const userName = prediction?.user?.name || 'Neznámy tipér'
+                  const sportName = prediction?.sport?.name || 'Neznámy šport'
+                  const leagueName = prediction?.league?.name || 'Neznáma liga'
+
+                  return (
+                    <div key={log.id} className="p-4">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-card-foreground">
+                            {formatAuditAction(log.action)}
+                          </p>
+                          <p className="mt-1 text-xs font-medium text-muted-foreground">
+                            {actor} • {format(new Date(log.created_at), 'd.M.yyyy HH:mm')}
+                          </p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {userName} • {sportName} / {leagueName}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2 text-xs font-black">
+                          <span className="rounded-full bg-secondary px-2.5 py-1 text-muted-foreground">
+                            {formatAuditResult(log.previous_result)}
+                          </span>
+                          <span className="text-muted-foreground">→</span>
+                          <span className={cn(
+                            'rounded-full px-2.5 py-1',
+                            log.next_result === 'OK' && 'bg-emerald-500/10 text-emerald-600',
+                            log.next_result === 'NOK' && 'bg-rose-500/10 text-rose-600',
+                            log.next_result === 'Pending' && 'bg-amber-500/10 text-amber-600',
+                          )}>
+                            {formatAuditResult(log.next_result)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              ) : (
+                <p className="p-4 text-sm text-muted-foreground">Zatiaľ žiadne zaznamenané zmeny.</p>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="space-y-6">

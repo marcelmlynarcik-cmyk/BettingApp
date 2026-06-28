@@ -11,6 +11,7 @@ Tento subor je spolocny pracovny backlog. Pri dalsich upravach budeme doplnat st
 - [x] Odobrat Nastavenia zo spodnej mobilnej navigacie a pridat ikonu nastaveni do horneho riadku s nazvom aplikacie.
 - [x] Napojit financne push notifikacie na realne pohyby: vklad, vyber, stavka pri novom tikete a vyplata pri vyhernom tikete.
 - [x] Pridat audit log vyhodnoteni tipov: kto zmenil tip, z akeho stavu na aky, kedy a cez aku akciu.
+- [x] Pridat UI historiu zmien na detail tiketu z tabulky `prediction_audit_logs`.
 
 ## Zistenia z aplikacie a databazy
 
@@ -28,7 +29,6 @@ Tento subor je spolocny pracovny backlog. Pri dalsich upravach budeme doplnat st
 
 - Odlozene: ownership model cez `auth_user_id` netreba, pokial aplikacia ostava spolocna iba pre troch pouzivatelov.
 - Odlozene/upravit zadanie: ulozene pre-match pravdepodobnosti netreba robit tak, aby blokovali dynamicky prepocet po OK/NOK; ak sa budu ukladat, maju byt iba historicky snapshot, nie hodnota pre aktualnu sancu tiketu.
-- Pridat UI historiu zmien na detail tiketu z tabulky `prediction_audit_logs`.
 - Doplnit email notifikacie pre financne udalosti, ak ich budeme chciet mimo Web Push.
 - Pridat do Nastaveni volbu jazyka aplikacie medzi SK a CZ.
 - Zjednotit menu pre desktop a mobil tak, aby nastavenia boli vzdy v hlavicke/profilovej casti a nie ako bezna hlavna sekcia.
