@@ -76,16 +76,26 @@ function formatPredictionContext(prediction: Partial<PredictionRow> | null | und
   return `${userName} | ${sportName} / ${leagueName} | kurz ${odds}`
 }
 
+function formatPredictionResults(predictions: PredictionRow[]) {
+  if (predictions.length === 0) return 'bez tipov'
+
+  return predictions
+    .map((prediction) => {
+      const userName = prediction.user?.name || 'Neznámy tipér'
+      return `${userName} ${prediction.result}`
+    })
+    .join(', ')
+}
+
 function formatTicketSettlementBody(ticket: TicketRow, settlement: { status: 'win' | 'loss'; payout: number }, predictions: PredictionRow[]) {
   const description = ticket.description || 'Tiket'
-  const firstContext = predictions[0] ? formatPredictionContext(predictions[0]) : 'bez tipov'
 
   if (settlement.status === 'win') {
     const profit = settlement.payout - toNumber(ticket.stake)
-    return `${description} | ${firstContext} | výplata ${settlement.payout.toFixed(2)} Kč | zisk ${profit.toFixed(2)} Kč`
+    return `${description} | výhra ${settlement.payout.toFixed(2)} Kč | zisk ${profit.toFixed(2)} Kč`
   }
 
-  return `${description} | ${firstContext} | vklad ${toNumber(ticket.stake).toFixed(2)} Kč`
+  return `${description} | vklad ${toNumber(ticket.stake).toFixed(2)} Kč | Tipy: ${formatPredictionResults(predictions)}`
 }
 
 async function replacePayoutTransaction(

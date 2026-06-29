@@ -37,6 +37,37 @@ function toResult(value: unknown): 'OK' | 'NOK' | 'Pending' | null {
   return value === 'OK' || value === 'NOK' || value === 'Pending' ? value : null
 }
 
+function formatPredictionResults(
+  predictions: Array<{ user_id: string | null; result: 'OK' | 'NOK' | 'Pending' | null }>,
+  userNamesById: Map<string, string>,
+) {
+  if (predictions.length === 0) return 'bez tipov'
+
+  return predictions
+    .map((prediction) => {
+      const userName = prediction.user_id ? userNamesById.get(prediction.user_id) || 'Neznámy tipér' : 'Neznámy tipér'
+      return `${userName} ${prediction.result || 'Pending'}`
+    })
+    .join(', ')
+}
+
+function formatTicketSettlementBody(input: {
+  description: string | null
+  status: Ticket['status']
+  payout: number
+  stake: number
+  predictions: Array<{ user_id: string | null; result: 'OK' | 'NOK' | 'Pending' | null }>
+  userNamesById: Map<string, string>
+}) {
+  const description = input.description || 'Tiket'
+
+  if (input.status === 'win') {
+    return `${description} | výhra ${input.payout.toFixed(2)} Kč | zisk ${(input.payout - input.stake).toFixed(2)} Kč`
+  }
+
+  return `${description} | vklad ${Math.abs(input.stake).toFixed(2)} Kč | Tipy: ${formatPredictionResults(input.predictions, input.userNamesById)}`
+}
+
 function computeSettlement(
   predictions: Array<{ id: string; result: 'OK' | 'NOK' | 'Pending' }>,
   stake: number,
@@ -329,14 +360,33 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     if (previousStatus !== status && status !== 'pending') {
+      const userIds = [...new Set(normalizedPredictions.map((prediction) => prediction.user_id).filter(Boolean))]
+      const { data: users, error: usersError } = userIds.length > 0
+        ? await supabase.from('users').select('id, name').in('id', userIds)
+        : { data: [], error: null }
+
+      if (usersError) throw usersError
+
+      const userNamesById = new Map(
+        ((users || []) as Array<{ id: string; name: string | null }>).map((user) => [user.id, user.name || 'Neznámy tipér']),
+      )
+
       await sendPushToAllUsersSafe({
         type: 'ticket_settled',
         dedupeKey: `${ticketId}:${status}`,
         payload: {
           title: status === 'win' ? 'Tiket je výherný' : 'Tiket je prehratý',
-          body: status === 'win'
-            ? `${description || 'Tiket'} | výplata ${payout.toFixed(2)} Kč | zisk ${(payout - stake).toFixed(2)} Kč`
-            : `${description || 'Tiket'} | vklad ${Math.abs(stake).toFixed(2)} Kč`,
+          body: formatTicketSettlementBody({
+            description,
+            status,
+            payout,
+            stake,
+            predictions: normalizedPredictions.map((prediction) => ({
+              user_id: prediction.user_id,
+              result: prediction.result,
+            })),
+            userNamesById,
+          }),
           url: `/tickets/${ticketId}`,
           tag: `ticket-settled:${ticketId}:${status}`,
         },
